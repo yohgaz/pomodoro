@@ -111,3 +111,14 @@ details.help code { background: var(--c3); padding: 1px 5px; border-radius: 5px;
 .task-row { cursor: pointer; }
 .task-row .cm-checkbox { margin-right: 0; width: 22px; height: 22px; flex-shrink: 0; }
 .task-row .cm-checkbox.is-checked::after { content: '✓'; color: var(--bg); font-weight: 900; font-size: 14px; }
+.seg-tabs { display: flex; gap: 4px; margin: 12px 12px 0; background: var(--c2); border: 1px solid var(--line); border-radius: 13px; padding: 4px; }
+.seg-tabs button { flex: 1; border: 0; background: none; padding: 9px 4px; border-radius: 10px; font-weight: 800; font-size: 14.5px; color: var(--mu); }
+.seg-tabs button.on { background: var(--c4); color: var(--tx); }
+.my-row .cm-checkbox { margin-right: 0; width: 22px; height: 22px; flex-shrink: 0; }
+.my-row .cm-checkbox.is-checked::after { content: '✓'; color: var(--bg); font-weight: 900; font-size: 14px; }
+.my-row.done .lbl { color: var(--mu); text-decoration: line-through; }
+.my-row.active { background: var(--accent-soft); }
+.add-inline { display: flex; gap: 8px; padding: 8px 10px; }
+.add-inline input { flex: 1; border: 1px solid var(--line-strong); background: var(--c1); border-radius: 10px; padding: 10px 12px; font-size: 16px; outline: none; min-width: 0; }
+.add-inline input:focus { border-color: var(--accent); }
+.add-inline button { width: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-size: 22px; font-weight: 900; }

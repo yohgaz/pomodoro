@@ -14,12 +14,11 @@ import { parse, serialize } from './md.js';
 let dbp = null;
 function db() {
     if (!dbp) dbp = new Promise((resolve, reject) => {
-        const req = indexedDB.open('pomodoro', 1);
+        const req = indexedDB.open('pomodoro', 2);
         req.onupgradeneeded = () => {
             const d = req.result;
-            d.createObjectStore('notes', { keyPath: 'id' });
-            d.createObjectStore('para', { keyPath: 'id' });
-            d.createObjectStore('kv');
+            for (const name of ['notes', 'para', 'users']) if (!d.objectStoreNames.contains(name)) d.createObjectStore(name, { keyPath: 'id' });
+            if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv');
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -43,7 +42,7 @@ const idb = {
     get: (store, k) => tx(store, 'readonly', s => s.get(k)),
     kvGet: k => tx('kv', 'readonly', s => s.get(k)),
     kvSet: (k, v) => tx('kv', 'readwrite', s => s.put(v, k)),
-    clear: () => Promise.all(['notes', 'para', 'kv'].map(n => tx(n, 'readwrite', s => s.clear())))
+    clear: () => Promise.all(['notes', 'para', 'users', 'kv'].map(n => tx(n, 'readwrite', s => s.clear())))
 };
 
 // ── Encodage ──
@@ -78,6 +77,8 @@ export class Store extends EventTarget {
         super();
         this.notes = new Map();
         this.para = new Map();
+        this.users = new Map();  // listes de tâches : « _perso » et celle du streamer
+        this.settings = {};      // settings.json partagé (lecture seule ici)
         this.cfg = null;         // { owner, repo, branch, token, demo }
         this.status = { state: 'idle', lastSync: null, error: null, pending: 0 };
         this.syncing = false;
@@ -85,55 +86,76 @@ export class Store extends EventTarget {
         this.imageCache = new Map();
     }
 
+    // Types de fichiers synchronisés : dossier, format, carte en mémoire.
+    kinds() {
+        return {
+            note: { map: this.notes, store: 'notes', path: id => `notes/${id}.md`, re: /^notes\/([^/]+)\.md$/, read: t => parse(t), write: o => serialize(o), label: o => (o.body.split('\n').find(l => l.trim()) || 'note').replace(/^#+\s*/, '').slice(0, 50) },
+            para: { map: this.para, store: 'para', path: id => `para/${id}.json`, re: /^para\/([^/]+)\.json$/, read: t => JSON.parse(t), write: o => JSON.stringify(o, null, 2) + '\n', label: o => o.name },
+            user: { map: this.users, store: 'users', path: id => `stream/users/${id}.json`, re: /^stream\/users\/([^/]+)\.json$/, read: t => JSON.parse(t), write: o => JSON.stringify(o, null, 2) + '\n', label: o => o.id === '_perso' ? 'tâches perso' : 'tâches de stream' }
+        };
+    }
+    streamerLogin() { return (this.settings.streamerLogin || '').toLowerCase(); }
+    // Seules deux listes intéressent le téléphone (pas celles des viewers).
+    wantsUser(id) { return id === '_perso' || (id && id === this.streamerLogin()); }
+
     emit(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
-    setStatus(p) { Object.assign(this.status, p); this.status.pending = [...this.notes.values(), ...this.para.values()].filter(x => x._dirty).length; this.emit('status', this.status); }
+    setStatus(p) {
+        Object.assign(this.status, p);
+        this.status.pending = [...this.notes.values(), ...this.para.values(), ...this.users.values()].filter(x => x._dirty).length;
+        this.emit('status', this.status);
+    }
 
     async load() {
         this.cfg = await idb.kvGet('cfg') || null;
         for (const n of await idb.all('notes')) this.notes.set(n.id, n);
         for (const p of await idb.all('para')) this.para.set(p.id, p);
+        for (const u of await idb.all('users')) this.users.set(u.id, u);
+        this.settings = await idb.kvGet('settings') || {};
         this.status.lastSync = await idb.kvGet('lastSync') || null;
         this.setStatus({});
     }
 
     async configure(cfg) {
         const changedRepo = !this.cfg || this.cfg.owner !== cfg.owner || this.cfg.repo !== cfg.repo || !!this.cfg.demo !== !!cfg.demo;
-        if (changedRepo) { await idb.clear(); this.notes.clear(); this.para.clear(); }
+        if (changedRepo) { await idb.clear(); this.notes.clear(); this.para.clear(); this.users.clear(); this.settings = {}; }
         this.cfg = cfg;
         await idb.kvSet('cfg', cfg);
     }
-    async logout() { await idb.clear(); this.cfg = null; this.notes.clear(); this.para.clear(); }
+    async logout() { await idb.clear(); this.cfg = null; this.notes.clear(); this.para.clear(); this.users.clear(); this.settings = {}; }
 
     // ── Notes ──
     list() { return [...this.notes.values()]; }
     get(id) { return this.notes.get(id) || null; }
 
-    async saveNote(n, { touch = true } = {}) {
-        if (touch) n.updatedAt = Date.now();
-        if (!n.createdAt) n.createdAt = n.updatedAt;
-        n._dirty = true;
-        this.notes.set(n.id, n);
-        await idb.put('notes', n);
-        this.emit('change', { kind: 'note', id: n.id });
+    async saveObj(kind, o, delay) {
+        const K = this.kinds()[kind];
+        o.updatedAt = Date.now();
+        if (!o.createdAt) o.createdAt = o.updatedAt;
+        o._dirty = true;
+        K.map.set(o.id, o);
+        await idb.put(K.store, o);
+        this.emit('change', { kind, id: o.id });
         this.setStatus({});
-        this.scheduleSync(2500);
-        return n;
+        this.scheduleSync(delay);
+        return o;
     }
+    saveNote(n) { return this.saveObj('note', n, 2500); }
+    saveContainer(c) { return this.saveObj('para', c, 1500); }
+    saveUser(u) { return this.saveObj('user', u, 1500); }
 
     async createNote({ body = '# ', container = null } = {}) {
         return this.saveNote({ id: newId(), body, container, extra: {}, _sha: null });
     }
 
-    async saveContainer(c) {
-        c.updatedAt = Date.now();
-        if (!c.createdAt) c.createdAt = c.updatedAt;
-        c._dirty = true;
-        this.para.set(c.id, c);
-        await idb.put('para', c);
-        this.emit('change', { kind: 'para', id: c.id });
-        this.setStatus({});
-        this.scheduleSync(1500);
-        return c;
+    // Liste de tâches (même format que le serveur, voir lib/stream.js).
+    user(id) {
+        let u = this.users.get(id);
+        if (!u) {
+            u = { id, login: id, displayName: id === '_perso' ? 'Perso' : id, color: null,
+                projects: [{ id: 'general', name: 'Général', active: null, backlog: [], done: [] }],
+                currentProject: 'general', totalDone: 0, memory: {}, pomo: null, sessionFirstAt: null, _sha: null };
+        }
+        return u;
     }
 
     // ── GitHub ──
@@ -178,6 +200,12 @@ export class Store extends EventTarget {
         }
     }
 
+    async blob(sha) {
+        const b = await fetch(this.url(`git/blobs/${sha}`), { headers: this.headers() });
+        if (!b.ok) throw new Error(`Téléchargement impossible (${b.status})`);
+        return b64decode((await b.json()).content);
+    }
+
     async pull() {
         const etag = await idb.kvGet('treeEtag');
         const r = await fetch(this.url(`git/trees/${encodeURIComponent(this.cfg.branch || 'main')}?recursive=1`), {
@@ -188,36 +216,46 @@ export class Store extends EventTarget {
         if (r.status === 401) throw new Error('Jeton GitHub refusé — reconnecte-toi dans les réglages.');
         if (!r.ok) throw new Error(`Lecture GitHub impossible (${r.status})`);
         const tree = await r.json();
-        const remote = new Map();
+        let changed = false;
+
+        // Réglages partagés d'abord (ils disent quelle liste est celle du streamer).
+        const st = (tree.tree || []).find(e => e.path === 'settings.json');
+        if (st && st.sha !== await idb.kvGet('settingsSha')) {
+            try { this.settings = JSON.parse(await this.blob(st.sha)); await idb.kvSet('settings', this.settings); await idb.kvSet('settingsSha', st.sha); changed = true; }
+            catch (e) { /* réglages illisibles : on garde les précédents */ }
+        }
+
+        const K = this.kinds();
+        const remote = new Map(); // chemin -> { kind, id, sha }
         for (const e of tree.tree || []) {
             if (e.type !== 'blob') continue;
-            if (/^notes\/[^/]+\.md$/.test(e.path) || /^para\/[^/]+\.json$/.test(e.path)) remote.set(e.path, e.sha);
+            for (const [kind, k] of Object.entries(K)) {
+                const m = e.path.match(k.re);
+                if (!m) continue;
+                if (kind === 'user' && !this.wantsUser(m[1])) break;
+                remote.set(e.path, { kind, id: m[1], sha: e.sha });
+                break;
+            }
         }
-        let changed = false;
         // Nouveaux fichiers / fichiers modifiés ailleurs
         const jobs = [];
-        for (const [p, sha] of remote) {
-            const isNote = p.startsWith('notes/');
-            const id = p.replace(/^(notes|para)\//, '').replace(/\.(md|json)$/, '');
-            const local = (isNote ? this.notes : this.para).get(id);
+        for (const [, { kind, id, sha }] of remote) {
+            const k = K[kind];
+            const local = k.map.get(id);
             if (local && local._sha === sha) continue;
             jobs.push(async () => {
-                const b = await fetch(this.url(`git/blobs/${sha}`), { headers: this.headers() });
-                if (!b.ok) throw new Error(`Téléchargement impossible (${b.status})`);
-                const text = b64decode((await b.json()).content);
-                let obj;
-                if (isNote) { obj = parse(text); obj.id = obj.id || id; }
-                else obj = JSON.parse(text);
+                const obj = k.read(await this.blob(sha));
+                obj.id = obj.id || id;
                 obj._sha = sha;
-                const cur = (isNote ? this.notes : this.para).get(id);
+                const cur = k.map.get(id);
                 if (cur && cur._dirty && (cur.updatedAt || 0) >= (obj.updatedAt || 0)) {
-                    cur._sha = sha; // on garde la version locale, plus récente ; elle écrasera la distante
-                    await idb.put(isNote ? 'notes' : 'para', cur);
+                    cur._sha = sha; // on garde la version locale, plus récente : elle écrasera la distante
+                    await idb.put(k.store, cur);
                     return;
                 }
                 obj._dirty = false;
-                (isNote ? this.notes : this.para).set(id, obj);
-                await idb.put(isNote ? 'notes' : 'para', obj);
+                k.map.set(id, obj);
+                await idb.put(k.store, obj);
                 changed = true;
             });
         }
@@ -225,10 +263,10 @@ export class Store extends EventTarget {
         const run = async () => { while (jobs.length) await jobs.shift()(); };
         await Promise.all(Array.from({ length: 6 }, run));
         // Fichiers supprimés ailleurs (connus ici, plus présents là-bas)
-        for (const [map, dir, ext, store] of [[this.notes, 'notes', '.md', 'notes'], [this.para, 'para', '.json', 'para']]) {
-            for (const [id, obj] of map) {
-                if (obj._sha && !obj._dirty && !remote.has(`${dir}/${id}${ext}`)) {
-                    map.delete(id); await idb.del(store, id); changed = true;
+        for (const k of Object.values(K)) {
+            for (const [id, obj] of k.map) {
+                if (obj._sha && !obj._dirty && !remote.has(k.path(id))) {
+                    k.map.delete(id); await idb.del(k.store, id); changed = true;
                 }
             }
         }
@@ -246,31 +284,30 @@ export class Store extends EventTarget {
     }
 
     async push() {
-        const dirty = [
-            ...[...this.para.values()].filter(x => x._dirty).map(x => ({ x, kind: 'para' })),
-            ...[...this.notes.values()].filter(x => x._dirty).map(x => ({ x, kind: 'note' }))
-        ];
+        const K = this.kinds();
+        const dirty = [];
+        for (const kind of ['para', 'user', 'note']) for (const x of K[kind].map.values()) if (x._dirty) dirty.push({ x, kind });
         for (const { x, kind } of dirty) {
-            const path = kind === 'note' ? `notes/${x.id}.md` : `para/${x.id}.json`;
+            const k = K[kind];
+            const path = k.path(x.id);
             const clean = { ...x }; delete clean._dirty; delete clean._sha;
-            const text = kind === 'note' ? serialize(clean) : JSON.stringify(clean, null, 2) + '\n';
-            const title = kind === 'note' ? (x.body.split('\n').find(l => l.trim()) || 'note').replace(/^#+\s*/, '').slice(0, 50) : x.name;
-            let r = await this.putFile(path, b64encode(text), x._sha, `📱 ${this.cfg.device || 'Téléphone'} · ${title}`);
+            const text = k.write(clean);
+            const msg = `📱 ${this.cfg.device || 'Téléphone'} · ${k.label(x)}`;
+            let r = await this.putFile(path, b64encode(text), x._sha, msg);
             if (r.status === 409 || r.status === 422) {
-                // Modifiée ailleurs entre-temps : on relit la version distante.
+                // Modifié ailleurs entre-temps : on relit la version distante.
                 const cur = await fetch(this.url(`contents/${path}?ref=${encodeURIComponent(this.cfg.branch || 'main')}`), { headers: this.headers(), cache: 'no-store' });
                 if (cur.ok) {
                     const d = await cur.json();
-                    const remoteText = b64decode(d.content);
-                    const remoteObj = kind === 'note' ? parse(remoteText) : JSON.parse(remoteText);
+                    const remoteObj = k.read(b64decode(d.content));
                     if ((remoteObj.updatedAt || 0) > (x.updatedAt || 0)) {
                         remoteObj.id = remoteObj.id || x.id; remoteObj._sha = d.sha; remoteObj._dirty = false;
-                        (kind === 'note' ? this.notes : this.para).set(x.id, remoteObj);
-                        await idb.put(kind === 'note' ? 'notes' : 'para', remoteObj);
+                        k.map.set(x.id, remoteObj);
+                        await idb.put(k.store, remoteObj);
                         this.emit('change', { kind, id: x.id, remoteWon: true });
                         continue;
                     }
-                    r = await this.putFile(path, b64encode(text), d.sha, `📱 ${this.cfg.device || 'Téléphone'} · ${title}`);
+                    r = await this.putFile(path, b64encode(text), d.sha, msg);
                 }
             }
             if (r.status === 401) throw new Error('Jeton GitHub refusé — reconnecte-toi dans les réglages.');
@@ -279,7 +316,7 @@ export class Store extends EventTarget {
             const d = await r.json();
             x._sha = d.content && d.content.sha;
             x._dirty = false;
-            await idb.put(kind === 'note' ? 'notes' : 'para', x);
+            await idb.put(k.store, x);
         }
         if (dirty.length) await idb.kvSet('treeEtag', null);
     }

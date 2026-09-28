@@ -346,6 +346,7 @@ function drawOverlay() {
                 toggle('Minuteurs individuels', 'Le petit pomodoro de chaque personne', 'showPomo'),
                 toggle('Nom du projet', 'Quand quelqu’un n’est pas sur « Général »', 'showProject'),
                 toggle('Toi en premier', 'Ta carte reste en haut de la liste', 'streamerFirst'),
+                h('div', { class: 'row' }, field('Tâches à venir affichées sous la tienne', 'streamerNext', 'number', { min: 0, max: 10 })),
                 toggle('Couleurs Twitch des pseudos', 'Sinon : palette du thème', 'useTwitchColors')),
             h('div', { class: 'card' }, h('h3', {}, '🍅 Minuteur'),
                 h('div', { class: 'row' }, field('Libellé focus', 'focusLabel', 'text', {}, tm), field('Libellé pause', 'breakLabel', 'text', {}, tm)),

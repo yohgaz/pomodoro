@@ -68,6 +68,8 @@
         .task.active .ico { display: grid; place-items: center; height: 1.35em; }
         .task.active .ico i { width: .55em; height: .55em; border-radius: 50%; background: var(--acc); box-shadow: 0 0 0 0 var(--acc); animation: pulse 2s infinite; }
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--acc) 70%, transparent); } 70% { box-shadow: 0 0 0 .45em transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.task.next { color: rgba(244, 242, 237, .62); font-weight: 700; font-size: .84em; }
+        .task.next .ico { color: rgba(244, 242, 237, .35); font-size: .8em; margin-top: .15em; }
         .more { font-size: .66em; font-weight: 800; color: var(--mu); margin-top: .2em; padding-left: 2.05em; }
         .empty { padding: 1.4em 1.2em 1.6em; text-align: center; color: var(--mu); font-weight: 800; font-size: .85em; line-height: 1.5; }
         .empty b { color: var(--acc); }
@@ -98,7 +100,7 @@
         const DEMO = () => {
             const now = Date.now();
             return [
-                { login: 'demo_hote', name: 'Emilae_TV', color: '#F0653D', isStreamer: true, project: 'Overlay', active: { text: 'Finir la scène de début de live' }, done: [{ id: 'd1', text: 'Préparer le planning de la semaine' }], backlogCount: 3, pomo: { phase: 'work', endsAt: now + 17 * 60000, phaseDuration: 25 * 60000, paused: false, completed: 1, goal: 4 } },
+                { login: 'demo_hote', name: 'Emilae_TV', color: '#F0653D', isStreamer: true, project: 'Overlay', active: { text: 'Finir la scène de début de live' }, next: [{ id: 'n1', text: 'Tester le minuteur' }, { id: 'n2', text: 'Répondre aux messages' }], done: [{ id: 'd1', text: 'Préparer le planning de la semaine' }], backlogCount: 1, pomo: { phase: 'work', endsAt: now + 17 * 60000, phaseDuration: 25 * 60000, paused: false, completed: 1, goal: 4 } },
                 { login: 'demo_a', name: 'Lunelle', color: '#9146FF', active: { text: 'Réviser le chapitre 4 de physique' }, done: [{ id: 'd2', text: 'Fiche de vocabulaire' }, { id: 'd3', text: 'Ranger le bureau' }], backlogCount: 0, pomo: { phase: 'break', endsAt: now + 3 * 60000, phaseDuration: 5 * 60000, paused: false, completed: 2, goal: 4 } },
                 { login: 'demo_b', name: 'PixelCafé', color: '#1E90FF', active: { text: 'Dessiner les croquis du perso' }, done: [], backlogCount: 2, pomo: null },
                 { login: 'demo_c', name: 'Tom_Codes', color: '#008000', active: null, done: [{ id: 'd4', text: 'Corriger le bug du menu' }], backlogCount: 0, pomo: null }
@@ -118,10 +120,11 @@
             const color = o.useTwitchColors ? readable(u.color) : readable(u.color && u.isStreamer ? u.color : '#F4F2ED');
             const done = o.showDone ? u.done.map(t => `<div class="task done ${prevDone.has(t.id) || firstRender ? '' : 'just-done'}"><span class="ico">✓</span><span class="txt">${esc(t.text)}</span></div>`).join('') : '';
             const active = u.active ? `<div class="task active"><span class="ico"><i></i></span><span class="txt">${esc(u.active.text)}</span></div>` : '';
+            const next = (u.next || []).map(t => `<div class="task next"><span class="ico">○</span><span class="txt">${esc(t.text)}</span></div>`).join('');
             const more = o.showBacklogCount && u.backlogCount ? `<div class="more">+ ${u.backlogCount} en attente</div>` : '';
             return `<div class="user ${u.isStreamer ? 'is-host' : ''} ${knownUsers.has(u.login) || firstRender ? '' : 'is-new'}" data-login="${esc(u.login)}">
                 <div class="uhead"><span class="uname" style="color:${color}">${esc(u.name)}</span>${u.isStreamer ? '<span class="badge">hôte</span>' : ''}${o.showProject && u.project ? `<span class="proj">📁 ${esc(u.project)}</span>` : ''}<span class="spacer"></span>${o.showPomo ? pomoHtml(u.pomo) : ''}</div>
-                ${done}${active}${more}</div>`;
+                ${done}${active}${next}${more}</div>`;
         }
 
         function render() {

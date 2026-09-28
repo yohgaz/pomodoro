@@ -1,5 +1,5 @@
 // Pomodoro mobile — notes IPARA partout, même hors ligne.
-import { Store } from './store.js';
+import { Store, newId } from './store.js';
 import { titleOf, tagsOf, tasksOf, excerptOf, taskLinesOf, toggleTaskLine, applyTemplate } from './md.js';
 import { createEditor, renderMarkdown } from './vendor/editor.bundle.js';
 
@@ -230,8 +230,14 @@ function openTasks() {
     }
     return out;
 }
+// Page Tâches : onglets Perso (liste privée), Stream (ma liste sur
+// l'overlay) et Notes (cases à cocher de toutes les notes).
+let tasksTab = 'perso';
+try { tasksTab = localStorage.getItem('pomodoro.m.tasksTab') || 'perso'; } catch (e) { /* rien */ }
+
 function renderTasks() {
     destroyEditor();
+    if (tasksTab !== 'notes') return renderMyList(tasksTab);
     const list = openTasks();
     const today = todayIso();
     const w = new Date(); w.setDate(w.getDate() + 7);
@@ -253,10 +259,11 @@ function renderTasks() {
     app.innerHTML = `
     <div class="screen">
         <div class="topbar"><button class="tb-btn" id="back">${I.back}</button><h1>☑️ Tâches</h1></div>
-        <div class="scroll">${html || '<div class="empty"><b>🎉</b>Aucune tâche en attente.</div>'}
+        <div class="scroll">${tabsHtml()}${html || '<div class="empty"><b>🎉</b>Aucune case à cocher en attente dans tes notes.</div>'}
             <p class="list-head" style="text-align:center">Astuce : ajoute 📅 2026-10-02 au bout d’une case pour lui donner une échéance.</p></div>
     </div>`;
     wireGo();
+    wireTabs();
     app.querySelector('#back').onclick = () => go('#/');
     app.querySelectorAll('.task-row').forEach(row => row.onclick = async () => {
         const t = flat[Number(row.dataset.i)];
@@ -267,6 +274,119 @@ function renderTasks() {
         t.note.body = body;
         await store.saveNote(t.note);
         setTimeout(() => { if ((location.hash || '').startsWith('#/tasks')) renderTasks(); }, 450);
+    });
+}
+
+function tabsHtml() {
+    const tabs = [['perso', '🏠 Perso'], ['stream', '🎥 Stream'], ['notes', '📝 Notes']];
+    return `<div class="seg-tabs">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${tasksTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+}
+function wireTabs() {
+    app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+        tasksTab = b.dataset.tab;
+        try { localStorage.setItem('pomodoro.m.tasksTab', tasksTab); } catch (e) { /* rien */ }
+        renderTasks();
+    });
+}
+
+// Opérations sur une liste (même format et même logique que lib/stream.js).
+const listOps = {
+    proj(u) { return u.projects.find(p => p.id === u.currentProject) || u.projects[0]; },
+    detach(u, t) {
+        for (const p of u.projects) {
+            if (p.active && p.active.id === t.id) { p.active = null; return p; }
+            for (const key of ['backlog', 'done']) { const i = p[key].findIndex(x => x.id === t.id); if (i >= 0) { p[key].splice(i, 1); return p; } }
+        }
+        return null;
+    },
+    add(u, text, now) {
+        const p = listOps.proj(u);
+        const t = { id: newId(), text: text.slice(0, 200), createdAt: Date.now() };
+        if (now) { if (p.active) p.backlog.unshift(p.active); t.startedAt = Date.now(); p.active = t; }
+        else p.backlog.push(t);
+    },
+    done(u, t) { const p = listOps.detach(u, t) || listOps.proj(u); t.doneAt = Date.now(); p.done.push(t); u.totalDone = (u.totalDone || 0) + 1; },
+    undone(u, t) { const p = listOps.detach(u, t) || listOps.proj(u); delete t.doneAt; u.totalDone = Math.max(0, (u.totalDone || 0) - 1); p.backlog.unshift(t); },
+    activate(u, t) { const p = listOps.detach(u, t) || listOps.proj(u); if (p.active) p.backlog.unshift(p.active); t.startedAt = Date.now(); p.active = t; },
+    remove(u, t) { listOps.detach(u, t); }
+};
+
+function renderMyList(kind) {
+    const streamer = store.streamerLogin();
+    const id = kind === 'perso' ? '_perso' : streamer;
+    const head = `<div class="topbar"><button class="tb-btn" id="back">${I.back}</button><h1>☑️ Tâches</h1></div>`;
+    if (!id) {
+        app.innerHTML = `<div class="screen">${head}<div class="scroll">${tabsHtml()}<div class="empty"><b>🎥</b>Ta liste de stream apparaîtra ici après la prochaine synchro du Mac.</div></div></div>`;
+        wireTabs(); app.querySelector('#back').onclick = () => go('#/');
+        return;
+    }
+    const u = store.user(id);
+    const p = listOps.proj(u);
+    const since = new Date().setHours(0, 0, 0, 0);
+    const done = p.done.filter(t => t.doneAt >= since).slice().reverse();
+    const items = [];
+    const rowHtml = (t, where) => { items.push({ t, where }); const i = items.length - 1;
+        return `<div class="row my-row ${where}" data-i="${i}"><span class="cm-checkbox ${where === 'done' ? 'is-checked' : ''}" data-check="${i}"></span><span class="lbl" style="white-space:normal">${where === 'active' ? '⚡ ' : ''}${esc(t.text)}</span><span class="chev" data-more="${i}">⋯</span></div>`; };
+    app.innerHTML = `
+    <div class="screen">
+        ${head}
+        <div class="scroll">${tabsHtml()}
+            <div class="list-head">${kind === 'perso' ? 'Ta liste personnelle, jamais affichée en live.' : 'Ta liste de stream : ta tâche en cours et les suivantes s’affichent sur l’overlay.'}${u.projects.length > 1 ? ` · 📁 ${esc(p.name)}` : ''}</div>
+            <div class="group-title">⚡ En cours</div>
+            <div class="group">${p.active ? rowHtml(p.active, 'active') : '<div class="list-head" style="padding:14px 16px">Aucune tâche en cours.</div>'}</div>
+            <div class="group-title">📋 ${kind === 'perso' ? 'À faire' : 'Backlog'}</div>
+            <div class="group">${p.backlog.map(t => rowHtml(t, 'backlog')).join('')}
+                <form class="add-inline" id="addForm"><input id="addInput" placeholder="Ajouter une tâche…" enterkeyhint="done" autocomplete="off"><button>+</button></form></div>
+            ${done.length ? `<div class="group-title">✅ Faites aujourd’hui</div><div class="group">${done.map(t => rowHtml(t, 'done')).join('')}</div>` : ''}
+        </div>
+    </div>`;
+    wireTabs();
+    app.querySelector('#back').onclick = () => go('#/');
+    const save = async () => { await store.saveUser(u); renderMyList(kind); };
+    app.querySelector('#addForm').onsubmit = async e => {
+        e.preventDefault();
+        const input = app.querySelector('#addInput');
+        const text = input.value.trim();
+        if (!text) return;
+        listOps.add(u, text, false);
+        await store.saveUser(u);
+        renderMyList(kind);
+        app.querySelector('#addInput').focus();
+    };
+    app.querySelectorAll('[data-check]').forEach(el => el.onclick = e => {
+        e.stopPropagation();
+        const { t, where } = items[Number(el.dataset.check)];
+        if (where === 'done') listOps.undone(u, t); else listOps.done(u, t);
+        el.classList.toggle('is-checked');
+        setTimeout(save, 250);
+    });
+    app.querySelectorAll('.my-row').forEach(row => row.onclick = () => {
+        const { t, where } = items[Number(row.dataset.i)];
+        const otherId = kind === 'perso' ? streamer : '_perso';
+        sheet(`<h3>${esc(t.text)}</h3>
+            ${where === 'backlog' ? '<button class="row" data-a="start"><span class="lbl">⚡ Commencer maintenant</span></button>' : ''}
+            ${where !== 'done' ? '<button class="row" data-a="done"><span class="lbl">✅ Terminer</span></button>' : '<button class="row" data-a="undone"><span class="lbl">↺ Pas encore fait</span></button>'}
+            ${where !== 'done' && otherId ? `<button class="row" data-a="move"><span class="lbl">${kind === 'perso' ? '🎥 Déplacer vers Stream' : '🏠 Déplacer vers Perso'}</span></button>` : ''}
+            <button class="row" data-a="rename"><span class="lbl">✏️ Renommer</span></button>
+            <button class="row danger" data-a="delete"><span class="lbl">🗑️ Supprimer</span></button>`, (bg, close) => {
+            bg.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => {
+                close();
+                const a = b.dataset.a;
+                if (a === 'start') listOps.activate(u, t);
+                if (a === 'done') listOps.done(u, t);
+                if (a === 'undone') listOps.undone(u, t);
+                if (a === 'delete') listOps.remove(u, t);
+                if (a === 'rename') { const v = prompt('Renommer la tâche', t.text); if (!v) return; t.text = v.trim(); }
+                if (a === 'move') {
+                    listOps.detach(u, t);
+                    const o = store.user(otherId);
+                    listOps.proj(o).backlog.unshift(t);
+                    await store.saveUser(o);
+                    toast(kind === 'perso' ? 'Déplacée vers Stream 🎥' : 'Déplacée vers Perso 🏠');
+                }
+                await save();
+            });
+        });
     });
 }
 

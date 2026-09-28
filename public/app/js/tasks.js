@@ -1,10 +1,16 @@
-// Tableau de bord : toutes les cases à cocher ouvertes de toutes les notes,
-// classées par échéance (📅 AAAA-MM-JJ ou @AAAA-MM-JJ dans la ligne).
+// Page « Tâches », en trois onglets :
+//   🏠 Perso   — ma liste privée (jamais sur l'overlay)
+//   🎥 Stream  — ma liste de stream (sur l'overlay, comme celles du chat)
+//   📝 Notes   — toutes les cases à cocher des notes, classées par échéance
+//                (📅 AAAA-MM-JJ ou @AAAA-MM-JJ dans la ligne).
 import { get, post, put, on } from './api.js';
 import { h, toast, debounce } from './ui.js';
+import { renderMyList, PERSO } from './mylist.js';
 
 const KIND_ICO = { project: '🎯', area: '🧭', resource: '📚' };
-const V = { root: null, ctx: null, tasks: [], q: '', filter: 'all' };
+const V = { root: null, body: null, ctx: null, tasks: [], q: '', filter: 'all', tab: 'perso', streamer: '' };
+const TABS = [['perso', '🏠 Perso'], ['stream', '🎥 Stream'], ['notes', '📝 Cases des notes']];
+try { V.tab = localStorage.getItem('pomodoro.tasksTab') || 'perso'; } catch (e) { /* rien */ }
 
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const todayIso = () => iso(new Date());
@@ -22,15 +28,47 @@ const fmtDue = s => {
 // Affichage : on retire la syntaxe Markdown la plus courante.
 const plain = s => String(s).replace(/\*\*|__|==|~~|`/g, '').replace(/\[\[([^\]|]+)(\|[^\]]*)?\]\]/g, '$1').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
 
-const reload = debounce(async () => { if (V.root && V.root.isConnected) { V.tasks = await get('/api/tasks'); draw(); } }, 300);
+const reload = debounce(async () => { if (V.root && V.root.isConnected && V.tab === 'notes') { V.tasks = await get('/api/tasks'); draw(); } }, 300);
 on('notes', () => reload());
+// Liste modifiée ailleurs (chat, autre machine, téléphone) : on rafraîchit.
+const reloadList = debounce(() => { if (V.root && V.root.isConnected && V.tab !== 'notes' && !(document.activeElement && document.activeElement.tagName === 'INPUT')) drawTab(); }, 400);
+on('stream', () => reloadList());
 
 export async function render(container, ctx) {
     V.ctx = ctx;
     V.root = h('div', { class: 'wide-inner' });
     container.replaceChildren(V.root);
+    const snap = await get('/api/stream');
+    V.streamer = snap.streamer || 'moi';
+    V.sessionStart = snap.sessionStart;
     V.tasks = await get('/api/tasks');
-    draw();
+    V.head = h('div', { class: 'wide-head' });
+    V.tabs = h('div', { class: 'tabs' });
+    V.body = h('div', {});
+    V.root.replaceChildren(V.head, V.tabs, V.body);
+    drawTab();
+}
+
+function drawTab() {
+    V.head.replaceChildren(h('h1', {}, '☑️ Tâches'));
+    V.tabs.replaceChildren(...TABS.map(([k, l]) => h('button', { class: `tab ${V.tab === k ? 'is-on' : ''}`, onclick: () => {
+        V.tab = k;
+        try { localStorage.setItem('pomodoro.tasksTab', k); } catch (e) { /* rien */ }
+        drawTab();
+    } }, l)));
+    if (V.tab === 'notes') return draw();
+    const perso = V.tab === 'perso';
+    V.body.replaceChildren(h('p', { class: 'help', style: { marginTop: 0 } }, perso
+        ? 'Ta liste personnelle : elle n’apparaît jamais sur l’overlay ni dans le chat. Synchronisée avec le Mac et l’iPhone.'
+        : 'Ta liste de stream : ta tâche en cours et les suivantes s’affichent sur l’overlay, en tête, comme celles du chat. Tu peux aussi la piloter depuis le chat (!task, !done, !later…).'),
+        h('div', { id: 'myListBox' }));
+    renderMyList(V.body.querySelector('#myListBox'), {
+        login: perso ? PERSO : V.streamer,
+        kind: perso ? 'perso' : 'stream',
+        other: perso ? { login: V.streamer, label: 'Stream' } : { login: PERSO, label: 'Perso' },
+        sessionStart: V.sessionStart,
+        onChange: () => V.ctx.refreshCounts && V.ctx.refreshCounts()
+    });
 }
 
 function groupOf(t) {
@@ -111,11 +149,11 @@ function draw() {
 
     const section = (title, items) => h('div', { class: 'card', style: { marginBottom: '14px' } }, h('h3', {}, title, h('small', {}, String(items.length))), ...items.map(taskRow));
 
-    V.root.replaceChildren(
-        h('div', { class: 'wide-head' }, h('h1', {}, '☑️ Tâches'),
+    V.body.replaceChildren(
+        h('div', { class: 'row', style: { marginBottom: '12px', flexWrap: 'wrap' } },
             h('div', { class: 'seg' }, ...[['all', 'Toutes'], ['dated', 'Avec échéance'], ['projects', 'Projets']].map(([k, l]) => h('button', { class: V.filter === k ? 'is-on' : '', onclick: () => { V.filter = k; draw(); } }, l))),
             search),
-        h('p', { class: 'help', style: { marginTop: '-8px' } }, `${V.tasks.length} case${V.tasks.length > 1 ? 's' : ''} à cocher dans tes notes. Ajoute une échéance en écrivant 📅 2026-10-02 (ou @2026-10-02) au bout d’une tâche.`),
+        h('p', { class: 'help', style: { marginTop: 0 } }, `${V.tasks.length} case${V.tasks.length > 1 ? 's' : ''} à cocher dans tes notes. Ajoute une échéance en écrivant 📅 2026-10-02 (ou @2026-10-02) au bout d’une tâche.`),
         h('div', { class: 'card dash-add', style: { marginBottom: '16px' } }, h('div', { class: 'add-row', style: { marginTop: 0 } }, input, date, h('button', { class: 'btn primary', onclick: add }, 'Ajouter')),
             h('div', { class: 'help', style: { marginTop: '6px', fontSize: '12.5px' } }, 'Les tâches rapides vont dans la note « Tâches rapides » de l’Inbox — range-les ensuite pendant ta revue.')),
         ...(list.length ? [] : [h('div', { class: 'card', style: { textAlign: 'center', padding: '40px' } }, h('div', { style: { fontSize: '40px' } }, '🎉'), h('p', { class: 'help' }, 'Aucune tâche en attente.'))]),

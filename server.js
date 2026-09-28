@@ -288,7 +288,7 @@ route('POST', '/api/files', async ({ req, query }) => {
 
 // Stream
 route('GET', '/api/stream', () => engine.snapshot());
-route('GET', '/api/stream/users', () => engine.store.list('users').sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
+route('GET', '/api/stream/users', () => engine.store.list('users').filter(u => !u.login.startsWith('_')).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
 route('GET', '/api/stream/users/:login', ({ params }) => {
     const u = engine.getUser(params.login, {}, false);
     return u || engine.getUser(params.login, {}, true);
@@ -423,6 +423,9 @@ async function main() {
     store.init();
     if (notes.seed()) console.log('🌱 Espace de notes d’exemple créé');
     notes.purgeTrash();
+    // L'app mobile a besoin de savoir quelle liste est celle du streamer.
+    const chan = engine.streamerLogin();
+    if (chan && engine.settings().streamerLogin !== chan) engine.saveSettings({ streamerLogin: chan });
     store.flush();
 
     bot = new TwitchBot({ getConfig: config.get, engine });

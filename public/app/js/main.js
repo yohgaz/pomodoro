@@ -77,11 +77,12 @@ async function route() {
 
 // ── Données ──
 async function refreshCounts() {
-    const [r, tasks] = await Promise.all([get('/api/notes/counts'), get('/api/tasks')]);
+    const [r, tasks, perso] = await Promise.all([get('/api/notes/counts'), get('/api/tasks'), get('/api/stream/users/_perso').catch(() => null)]);
     S.counts = r.counts; S.tags = r.tags; S.containers = r.containers;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    S.taskCount = tasks.length;
+    const persoOpen = perso ? perso.projects.reduce((n, p) => n + (p.active ? 1 : 0) + p.backlog.length, 0) : 0;
+    S.taskCount = tasks.length + persoOpen;
     S.taskUrgent = tasks.filter(t => t.due && t.due <= iso).length;
     renderSidebar();
     renderListHead();
