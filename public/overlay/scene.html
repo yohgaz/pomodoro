@@ -11,12 +11,17 @@
         html, body { margin: 0; background: transparent; overflow: hidden; width: 100%; height: 100%; }
         body { font-family: var(--font); color: var(--tx); -webkit-font-smoothing: antialiased; }
         /* Scène dessinée pour 1920×1080, mise à l'échelle de la source (4K compris). */
-        #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; --acc: #F0653D; --fs: 17px; font-size: var(--fs); }
+        /* Scène décrite en unités 1920×1080 ; le zoom CSS la met en page directement à la
+           résolution de la source (3840×2160 = zoom 2) : rendu 4K natif, sans agrandissement. */
+        #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; --acc: #F0653D; --fs: 17px; font-size: var(--fs); }
         .zone { position: absolute; display: flex; flex-direction: column; gap: var(--gap, 16px); }
         .zone.tl { left: var(--m); top: var(--m); align-items: flex-start; }
         .zone.tr { right: var(--m); top: var(--m); align-items: flex-end; }
         .zone.bl { left: var(--m); bottom: var(--m); align-items: flex-start; justify-content: flex-end; }
         .zone.br { right: var(--m); bottom: var(--m); align-items: flex-end; justify-content: flex-end; }
+        .zone.row { flex-direction: row; }
+        .zone.row.tl, .zone.row.tr { align-items: flex-start; }
+        .zone.row.bl, .zone.row.br { align-items: flex-end; }
         .panel { position: relative; transition: opacity .5s ease, transform .5s ease; }
         .panel.free { position: absolute; }
         .panel.is-off { display: none; }
@@ -73,19 +78,23 @@
         .cdesc { font-weight: 700; font-size: .8em; color: var(--tx-2); line-height: 1.3; }
         .calias { font-size: .68em; color: var(--mu); font-weight: 700; white-space: nowrap; margin-left: auto; padding-left: .4em; }
 
-        /* Minuteur */
-        .timer { display: flex; flex-direction: column; align-items: center; padding: 1.1em 1em 1em; }
-        .ring { position: relative; width: 11.5em; height: 11.5em; }
-        .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-        .ring .arc { transition: stroke-dashoffset .95s linear, stroke .6s; }
-        .ring .c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        .ring .ph { font-size: .7em; font-weight: 900; letter-spacing: .25em; text-transform: uppercase; padding-left: .25em; }
-        .ring .tm { font-size: 2.6em; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: -1px; line-height: 1.05; }
-        .ring .dots { display: flex; gap: .3em; margin-top: .35em; }
-        .ring .dots i { width: .45em; height: .45em; border-radius: 50%; background: rgba(255, 255, 255, .13); }
-        .ring .dots i.on { background: var(--acc); }
-        .timer .lb { font-size: .78em; font-weight: 800; color: var(--tx-2); margin-top: .5em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .timer.paused .tm { opacity: .5; }
+        /* Minuteur : même cadran rond que /overlay/timer (unités --u = largeur / 380) */
+        .tring { --col: #F0653D; position: relative; width: calc(380 * var(--u)); height: calc(380 * var(--u)); border-radius: 50%;
+                 background: radial-gradient(circle at 50% 35%, rgba(31, 34, 48, .96), rgba(14, 16, 23, .96) 70%);
+                 box-shadow: 0 calc(20 * var(--u)) calc(50 * var(--u)) rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .08), 0 0 0 1px rgba(255, 255, 255, .06); }
+        .tring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+        .tring .arc { transition: stroke-dashoffset .95s linear, stroke .6s; filter: drop-shadow(0 0 calc(10 * var(--u)) color-mix(in srgb, var(--col) 60%, transparent)); }
+        .tring .c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .tring .ph { font-size: calc(19 * var(--u)); font-weight: 900; letter-spacing: .28em; text-transform: uppercase; color: var(--col); padding-left: .28em; transition: color .6s; }
+        .tring .tm { font-size: calc(92 * var(--u)); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: calc(-2 * var(--u)); margin: calc(6 * var(--u)) 0 calc(8 * var(--u)); }
+        .tring .lb { font-size: calc(17 * var(--u)); font-weight: 800; color: var(--tx-2); max-width: calc(250 * var(--u)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: calc(23 * var(--u)); }
+        .tring .dots { display: flex; gap: calc(9 * var(--u)); margin-top: calc(14 * var(--u)); }
+        .tring .dots i { width: calc(12 * var(--u)); height: calc(12 * var(--u)); border-radius: 50%; background: rgba(255, 255, 255, .12); transition: background .4s, transform .4s; }
+        .tring .dots i.on { background: #F0653D; }
+        .tring .dots i.cur { background: transparent; box-shadow: inset 0 0 0 calc(2 * var(--u)) var(--col); transform: scale(1.1); }
+        .tring.paused .tm { opacity: .5; animation: blink 1.6s ease-in-out infinite; }
+        @keyframes blink { 50% { opacity: .25; } }
+        .tring.idle .tm { color: var(--mu); }
 
         /* Réseaux sociaux (même principe que SocialRotator du pack de stream) */
         .socials { position: relative; height: 4.3em; }
@@ -101,7 +110,7 @@
 
         /* Mode disposition (?edit=1) */
         body.edit { background: repeating-conic-gradient(#1a1c25 0 25%, #14161e 0 50%) 0 0 / 40px 40px; }
-        body.edit .zone { gap: calc(var(--gap, 16px) + 2.4em); }
+        body.edit .zone:not(.row) { gap: calc(var(--gap, 16px) + 2.4em); }
         body.edit .zone.tl, body.edit .zone.tr { top: calc(var(--m) + 2em); }
         body.edit .panel { outline: 2px dashed rgba(240, 101, 61, .55); outline-offset: 4px; border-radius: 1.1em; }
         body.edit .panel.is-off { display: block; opacity: .3; }
@@ -140,8 +149,9 @@
 
         // ── Échelle : la scène 1920×1080 remplit la source, quelle que soit sa taille ──
         function fit() {
-            scale = Math.min(innerWidth / 1920, innerHeight / 1080) || 1;
-            stage.style.transform = `scale(${scale})`;
+            stage.style.zoom = Math.min(innerWidth / 1920, innerHeight / 1080) || 1;
+            // Facteur réellement appliqué (mesuré : la sémantique du zoom varie selon la version de Chromium/OBS)
+            scale = stage.getBoundingClientRect().width / 1920 || 1;
         }
         addEventListener('resize', fit);
         fit();
@@ -163,6 +173,7 @@
             stage.style.setProperty('--acc', snap.overlay.accent);
             stage.style.setProperty('--fs', (snap.overlay.fontSize - 2) + 'px');
             stage.style.setProperty('--bg-op', snap.overlay.bgOpacity);
+            for (const z of ['tl', 'tr', 'bl', 'br']) stage.querySelector(`.zone[data-zone="${z}"]`).classList.toggle('row', (sc.zones || {})[z] === 'row');
             const entries = Object.entries(sc.layout).filter(([id]) => PANELS[id]).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
             for (const [id, L] of entries) {
                 const el = els[id];
@@ -196,13 +207,17 @@
                 fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             }, 300);
         }
+        function toolsOrder(z) {
+            const row = (snap.scene.zones || {})[z] === 'row';
+            return `<button data-a="dir" title="Ce coin : côte à côte ou l’un sous l’autre">${row ? '⇄' : '⇅'}</button><button data-a="up" title="Avant">${row ? '◀' : '▲'}</button><button data-a="down" title="Après">${row ? '▶' : '▼'}</button>`;
+        }
         function drawTools(id, L, off) {
             const t = els[id].querySelector('.tools');
             const z = L.zone;
             t.innerHTML = `<span class="nm">${PANELS[id]}</span>
                 <button class="grip" data-a="drag" title="Glisser librement">✥</button>
                 ${['tl', 'tr', 'bl', 'br'].map(k => `<button data-a="zone" data-z="${k}" class="${z === k ? 'on' : ''}" title="Ranger dans ce coin">${{ tl: '↖', tr: '↗', bl: '↙', br: '↘' }[k]}</button>`).join('')}
-                ${z !== 'free' ? '<button data-a="up" title="Monter">▲</button><button data-a="down" title="Descendre">▼</button>' : ''}
+                ${z !== 'free' ? toolsOrder(z) : ''}
                 <button data-a="narrow" title="Plus étroit">−</button><button data-a="wide" title="Plus large">+</button>
                 <button data-a="vis" class="${off ? '' : 'on'}" title="Afficher / masquer">👁</button>`;
         }
@@ -213,6 +228,14 @@
                 const id = b.closest('.panel').dataset.id;
                 const L = snap.scene.layout[id];
                 const a = b.dataset.a;
+                if (a === 'dir') {
+                    const zones = { ...(snap.scene.zones || {}) };
+                    zones[L.zone] = zones[L.zone] === 'row' ? 'column' : 'row';
+                    snap.scene.zones = zones;
+                    layout();
+                    fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scene: { zones } }) });
+                    return;
+                }
                 if (a === 'zone') {
                     const others = Object.values(snap.scene.layout).filter(x => x !== L && x.zone === b.dataset.z);
                     saveLayout(id, { zone: b.dataset.z, order: others.length ? Math.max(...others.map(x => x.order || 0)) + 1 : 0 });
@@ -245,8 +268,9 @@
             });
             stage.addEventListener('pointermove', e => {
                 if (!drag) return;
-                const x = Math.round(Math.max(0, Math.min(1900, (e.clientX - drag.dx) / scale)));
-                const y = Math.round(Math.max(0, Math.min(1060, (e.clientY - drag.dy) / scale)));
+                const sr = stage.getBoundingClientRect();
+                const x = Math.round(Math.max(0, Math.min(1900, (e.clientX - sr.left - drag.dx) / scale)));
+                const y = Math.round(Math.max(0, Math.min(1060, (e.clientY - sr.top - drag.dy) / scale)));
                 Object.assign(snap.scene.layout[drag.id], { zone: 'free', x, y });
                 const el = els[drag.id];
                 el.classList.add('free'); el.style.left = x + 'px'; el.style.top = y + 'px';
@@ -384,30 +408,44 @@
         }
 
         // ── Minuteur ──
-        let lastPhase = null;
+        let lastPhase = null, dotsKey = '';
         const C = 2 * Math.PI * 88;
         function drawTimer() {
             const content = els.timer.querySelector('.content');
             let t = snap.timer;
             if (!t && DEMO) t = { phase: 'work', endsAt: now() + 1122000, phaseDuration: 1500000, paused: false, completed: 1, goal: 4, label: 'Écriture du script' };
             const L = snap.timerSettings;
-            const col = !t ? '#A6A29B' : t.phase === 'break' ? '#6FDA9A' : t.phase === 'done' ? '#E8B84D' : snap.overlay.accent;
-            const rem = t ? remaining(t) : 0;
-            const frac = !t ? 0 : t.phase === 'done' ? 1 : Math.max(0, Math.min(1, 1 - rem / (t.phaseDuration || 1)));
-            const ph = !t ? L.idleLabel : t.paused ? 'Pause ⏸' : t.phase === 'work' ? L.focusLabel : t.phase === 'break' ? L.breakLabel : L.doneLabel;
+            const W = (snap.scene.layout.timer || {}).width || 280;
             if (!content.firstChild) {
-                content.innerHTML = `<div class="card"><div class="timer"><div class="ring"><svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="88" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="11"/><circle class="arc" cx="100" cy="100" r="88" fill="none" stroke-width="11" stroke-linecap="round" stroke-dasharray="${C}"/></svg><div class="c"><div class="ph"></div><div class="tm"></div><div class="dots"></div></div></div><div class="lb"></div></div></div>`;
+                content.innerHTML = `<div class="tring"><svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="88" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/><circle class="arc" cx="100" cy="100" r="88" fill="none" stroke="var(--col)" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg><div class="c"><div class="ph"></div><div class="tm">--:--</div><div class="lb"></div><div class="dots"></div></div></div>`;
             }
-            const q = s => content.querySelector(s);
-            q('.timer').classList.toggle('paused', !!(t && t.paused));
-            q('.arc').style.stroke = col;
+            const ring = content.querySelector('.tring');
+            const q = sel => ring.querySelector(sel);
+            ring.style.setProperty('--u', (W / 380) + 'px');
+            ring.classList.toggle('paused', !!(t && t.paused));
+            ring.classList.toggle('idle', !t);
+            if (!t) {
+                ring.style.setProperty('--col', '#A6A29B');
+                q('.ph').textContent = L.idleLabel; q('.tm').textContent = '--:--'; q('.lb').textContent = ''; q('.dots').innerHTML = ''; dotsKey = '';
+                q('.arc').style.strokeDashoffset = C;
+                lastPhase = null;
+                return;
+            }
+            const col = t.phase === 'break' ? '#6FDA9A' : t.phase === 'done' ? '#E8B84D' : (snap.overlay.accent || '#F0653D');
+            ring.style.setProperty('--col', col);
+            const rem = remaining(t);
+            const frac = t.phase === 'done' ? 1 : Math.max(0, Math.min(1, 1 - rem / (t.phaseDuration || 1)));
+            q('.ph').textContent = t.paused ? 'Pause ⏸' : t.phase === 'work' ? L.focusLabel : t.phase === 'break' ? L.breakLabel : L.doneLabel;
+            q('.tm').textContent = fmt(rem);
+            q('.lb').textContent = t.label || '';
             q('.arc').style.strokeDashoffset = String(C * (1 - frac));
-            q('.ph').textContent = ph; q('.ph').style.color = col;
-            q('.tm').textContent = t ? fmt(rem) : '--:--';
-            q('.lb').textContent = t && t.label ? t.label : '';
-            q('.dots').innerHTML = t ? Array.from({ length: Math.min(t.goal, 12) }, (_, k) => `<i class="${k < t.completed ? 'on' : ''}"></i>`).join('') : '';
-            if (t && lastPhase && lastPhase !== t.phase && L.sound && !DEMO && params.get('sound') !== '0') chime(t.phase);
-            lastPhase = t ? t.phase : null;
+            const key = `${t.goal}-${t.completed}-${t.phase}`;
+            if (key !== dotsKey) {
+                dotsKey = key;
+                q('.dots').innerHTML = Array.from({ length: Math.min(t.goal, 12) }, (_, i) => `<i class="${i < t.completed ? 'on' : (i === t.completed && t.phase === 'work' ? 'cur' : '')}"></i>`).join('');
+            }
+            if (lastPhase && lastPhase !== t.phase && L.sound && !DEMO && params.get('sound') !== '0') chime(t.phase);
+            lastPhase = t.phase;
         }
         setInterval(() => { if (snap) drawTimer(); }, 500);
 

@@ -382,15 +382,15 @@ function sceneCard(base, s, urlLine) {
         return h('label', { class: 'field' }, h('span', {}, label), i);
     };
     return h('div', { class: 'card' }, h('h3', {}, '🎬 Scène tout-en-un', h('small', {}, 'recommandé : une seule source')),
-        h('p', { class: 'help', style: { marginTop: 0 } }, 'Tâches du chat, tes tâches, commandes, minuteur et réseaux sociaux dans une seule source navigateur. Taille de la source : celle de ton canevas (1920 × 1080 ou 3840 × 2160), la scène s’adapte toute seule.'),
+        h('p', { class: 'help', style: { marginTop: 0 } }, 'Tâches du chat, tes tâches, commandes, minuteur et réseaux sociaux dans une seule source navigateur. Taille de la source : celle de ton canevas — en 3840 × 2160 le rendu est en 4K natif (mise en page à la résolution réelle, pas un agrandissement).'),
         urlLine('Scène', `${base}/overlay/scene`, 'taille du canevas'),
         h('div', { class: 'help', style: { margin: '12px 0 6px' } }, h('b', {}, 'Disposition'), ' — ↖ ↗ ↙ ↘ range un panneau dans un coin (empilé), ✥ le déplace librement. OBS se met à jour en direct.'),
         box,
         h('div', { class: 'row', style: { marginTop: '10px', flexWrap: 'wrap' } },
             h('button', { class: 'btn small', onclick: () => window.open('/overlay/scene?edit=1', 'pomodoro-layout', 'width=1280,height=760') }, 'Ouvrir en grand'),
             h('button', { class: 'btn small ghost', onclick: async () => {
-                if (!await confirmBox('Disposition par défaut ?', 'Tâches du chat et les tiennes en haut à gauche, commandes en bas à gauche, minuteur en haut à droite, réseaux en bas à droite.', { ok: 'Rétablir' })) return;
-                V.state.settings = await put('/api/settings', { scene: { layout: DEFAULT_LAYOUT } });
+                if (!await confirmBox('Disposition par défaut ?', 'Tâches du chat et les tiennes côte à côte en haut à gauche, commandes en bas à gauche, minuteur en haut à droite, réseaux en bas à droite.', { ok: 'Rétablir' })) return;
+                V.state.settings = await put('/api/settings', { scene: { layout: DEFAULT_LAYOUT, zones: { tl: 'row', tr: 'column', bl: 'column', br: 'column' } } });
                 frame.contentWindow.location.reload();
             } }, 'Disposition par défaut')),
         h('div', { class: 'row', style: { marginTop: '10px' } }, num('Rotation des viewers (s)', 'chatRotateSeconds', 5, 300), num('Tes tâches faites affichées', 'mineDone', 0, 10), num('Marge (px)', 'margin', 0, 200))
