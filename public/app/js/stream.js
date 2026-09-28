@@ -333,6 +333,10 @@ function drawOverlay() {
                 urlLine('Liste de tâches en 4K', `${base}/overlay/tasks?scale=2`, `largeur ${(o.width + 40) * 2} × hauteur ${(o.maxHeight + 140) * 2}`),
                 urlLine('Minuteur', `${base}/overlay/timer`, '420 × 420 (ou ?style=bar : 900 × 120)'),
                 urlLine('Minuteur en 4K', `${base}/overlay/timer?scale=2`, '840 × 840'),
+                urlLine('Commandes du chat', `${base}/overlay/commands`, `largeur ${o.width + 40} × hauteur 620 (?style=ticker : bandeau 940 × 110)`),
+                urlLine('Commandes en 4K', `${base}/overlay/commands?scale=2`, `largeur ${(o.width + 40) * 2} × hauteur 1240`),
+                h('div', { class: 'help', style: { margin: '14px 0 4px' } }, h('b', {}, '🎛️ Panneau de contrôle dans OBS'), ' — menu Docks → Custom Browser Docks → nom « Pomodoro », adresse :'),
+                h('div', { class: 'code-line' }, h('span', {}, `${base}/dock`), h('button', { class: 'btn small', onclick: () => { navigator.clipboard.writeText(`${base}/dock`); toast('Adresse copiée'); } }, icon('copy'), 'Copier')),
                 h('p', { class: 'help' }, 'Options d’URL : ?scale=2 (4K), ?user=pseudo (une seule personne), ?style=bar (minuteur en bandeau), ?sound=0 (sans son). Le bot se connecte automatiquement dès qu’OBS affiche un de ces overlays sur cette machine.')),
             h('div', { class: 'card' }, h('h3', {}, '📝 Liste de tâches'),
                 field('Titre', 'title'), field('Sous-titre', 'subtitle'),
@@ -346,6 +350,7 @@ function drawOverlay() {
                 toggle('Minuteurs individuels', 'Le petit pomodoro de chaque personne', 'showPomo'),
                 toggle('Nom du projet', 'Quand quelqu’un n’est pas sur « Général »', 'showProject'),
                 toggle('Toi en premier', 'Ta carte reste en haut de la liste', 'streamerFirst'),
+                toggle('Bandeau des commandes', 'Une commande du chat à la fois, en bas de la liste', 'commandsFooter'),
                 h('div', { class: 'row' }, field('Tâches à venir affichées sous la tienne', 'streamerNext', 'number', { min: 0, max: 10 })),
                 toggle('Couleurs Twitch des pseudos', 'Sinon : palette du thème', 'useTwitchColors')),
             h('div', { class: 'card' }, h('h3', {}, '🍅 Minuteur'),
@@ -363,77 +368,8 @@ function drawOverlay() {
 }
 
 // ── Commandes ──
-const COMMANDS = [
-    ['Tâches', [
-        ['!task <tâche>', 'Crée ta tâche active (l’ancienne repasse en tête du backlog)'],
-        ['!task', 'Affiche ta tâche actuelle'],
-        ['!done', 'Termine la tâche active', 'fait'],
-        ['!done next', 'Termine et enchaîne sur la suivante du backlog'],
-        ['!done 2; 3', 'Termine plusieurs tâches (0 = active, 1+ = backlog)'],
-        ['!done all', 'Termine tout'],
-        ['!done <texte>', 'Enregistre directement une tâche faite'],
-        ['!rename <texte>', 'Renomme la tâche active (!rename 2 <texte> pour le backlog)', 'renommer'],
-        ['!remove', 'Supprime la tâche active (!remove 2, !remove all)', 'retirer'],
-        ['!mytasks', 'Résumé : active, backlog, faites', 'mestaches'],
-        ['!mydone', 'Nombre de tâches faites aujourd’hui et au total'],
-        ['!ourdone', 'Total de la communauté'],
-        ['!randomtask', 'Une petite tâche positive au hasard'],
-        ['!clearold [n]', 'Retire tes tâches faites de l’overlay']
-    ]],
-    ['Backlog', [
-        ['!later a; b; c', 'Ajoute à la fin du backlog', 'plustard'],
-        ['!soon <tâche>', 'Ajoute en tête du backlog', 'bientot'],
-        ['!backlog', 'Liste le backlog (!backlog clear pour vider)'],
-        ['!now', 'Prend la tâche suivante du backlog', 'maintenant'],
-        ['!now 2', 'Active la tâche n°2'],
-        ['!now skip', 'Passe la tâche actuelle en fin de backlog'],
-        ['!now raffle', 'Tire une tâche au hasard'],
-        ['!display 2', 'Affiche le texte complet d’une tâche']
-    ]],
-    ['Projets', [
-        ['!project <nom>', 'Crée ou bascule sur un projet', 'projet'],
-        ['!project Nom: a; b', 'Crée un projet avec ses tâches'],
-        ['!projects', 'Liste tes projets', 'projets'],
-        ['!project rename <nom>', 'Renomme le projet actuel'],
-        ['!project remove', 'Supprime le projet actuel'],
-        ['!addto Nom: a; b', 'Ajoute à un autre projet sans basculer'],
-        ['!getfrom <nom>', 'Ramène la prochaine tâche d’un autre projet'],
-        ['!peek <nom>', 'Jette un œil à un projet'],
-        ['!fullreset confirm', 'Efface tous tes projets et tâches']
-    ]],
-    ['Pomodoro perso', [
-        ['!pomo 25 <nom>', 'Minuteur de 25 min'],
-        ['!pomo 25/5/4 <nom>', 'Focus / pause / nombre de cycles'],
-        ['!pomo', 'Où en est ton pomo'],
-        ['!pomo pause · continue', 'Pause / reprise'],
-        ['!pomo +5 · -5', 'Ajoute / retire des minutes'],
-        ['!pomo rename · finish · cancel', 'Renomme / termine / annule'],
-        ['!ask pomo @pseudo', 'Le pomo de quelqu’un']
-    ]],
-    ['Mémoire', [
-        ['!remember pronoms iel', 'Clés : pronoms, pays, plat, animal, signe'],
-        ['!ask pronoms @pseudo', 'Lire la valeur de quelqu’un (!ask task @pseudo aussi)'],
-        ['!forget pronoms · all', 'Oublier'],
-        ['!memory stats', 'Statistiques']
-    ]],
-    ['Streamer & modos', [
-        ['!timer 50/10/4 <nom>', 'Lance le minuteur du stream', 'minuteur'],
-        ['!timer pause · resume · skip · stop', 'Contrôle du minuteur'],
-        ['!timer +5 · -5 · goal 6 · rename <nom>', 'Ajustements'],
-        ['!timerpomo 1/4', 'Règle le compteur de pomodoros'],
-        ['!note <idée>', 'Streamer : envoie une idée dans l’Inbox des notes'],
-        ['!newsession', 'Nettoie les tâches faites de l’overlay'],
-        ['!cleartasks @pseudo', 'Efface les tâches de quelqu’un'],
-        ['!tasklock on · off', 'Réserve la liste aux modos'],
-        ['!overlay hide · show', 'Masque / affiche l’overlay']
-    ]],
-    ['Aide', [
-        ['!sweet', 'Aide courte (!sweet help, !sweet backlog, !sweet pomo)'],
-        ['!sweetbacklog · !sweetpomo', 'Aides détaillées']
-    ]]
-];
-
-function drawCommands() {
+async function drawCommands() {
+    const GROUPS = await get('/api/commands');
     const body = document.getElementById('stBody');
     const chat = { ...V.state.settings.chat };
     const save = debounce(async () => { V.state.settings = await put('/api/settings', { chat }); toast('Enregistré', 'ok', { ms: 1200 }); }, 400);
@@ -446,11 +382,9 @@ function drawCommands() {
     const num = (label, key) => { const i = h('input', { type: 'number', value: chat[key] }); i.addEventListener('input', () => { chat[key] = Number(i.value); save(); }); return h('label', { class: 'field' }, h('span', {}, label), i); };
     const banned = h('textarea', { placeholder: 'un mot par ligne' }, (chat.bannedWords || []).join('\n'));
     banned.addEventListener('input', () => { chat.bannedWords = banned.value.split('\n').map(s => s.trim()).filter(Boolean); save(); });
-    const cmdName = c => c.split(' ')[0].slice(1).toLowerCase();
     body.replaceChildren(h('div', { class: 'grid-2', style: { gridTemplateColumns: 'minmax(0,2fr) minmax(0,1fr)', alignItems: 'start' } },
-        h('div', { class: 'stack' }, ...COMMANDS.map(([group, cmds]) => h('div', { class: 'card' }, h('h3', {}, group),
-            h('table', { class: 'cmd-table' }, h('tbody', {}, ...cmds.map(([c, d, alias]) => {
-                const name = cmdName(c);
+        h('div', { class: 'stack' }, ...GROUPS.map(g => h('div', { class: 'card' }, h('h3', {}, `${g.icon} ${g.title}`),
+            h('table', { class: 'cmd-table' }, h('tbody', {}, ...g.cmds.map(({ cmd: c, desc: d, alias, name }) => {
                 const box = h('input', { type: 'checkbox', checked: !disabled.has(name), title: 'Activer / désactiver' });
                 box.addEventListener('change', () => { if (box.checked) disabled.delete(name); else disabled.add(name); chat.disabledCommands = [...disabled]; save(); });
                 return h('tr', {}, h('td', {}, h('code', {}, c), alias ? h('div', { class: 'muted', style: { fontSize: '12px', marginTop: '4px' } }, `alias : !${alias}`) : null), h('td', { class: 'help' }, d), h('td', { style: { width: '30px' } }, box));

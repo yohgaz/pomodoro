@@ -73,6 +73,13 @@
         .more { font-size: .66em; font-weight: 800; color: var(--mu); margin-top: .2em; padding-left: 2.05em; }
         .empty { padding: 1.4em 1.2em 1.6em; text-align: center; color: var(--mu); font-weight: 800; font-size: .85em; line-height: 1.5; }
         .empty b { color: var(--acc); }
+        .foot { display: flex; align-items: center; gap: .55em; padding: .6em 1.15em .75em; border-top: 1px solid rgba(255, 255, 255, .06); font-size: .78em; min-height: 1.4em; }
+        .foot:empty { display: none; }
+        .foot .fi { flex-shrink: 0; }
+        .foot .fc { font-family: 'JetBrains Mono', var(--font-mono); font-weight: 700; color: #E8B84D; background: rgba(232, 184, 77, .1); border-radius: .4em; padding: .08em .45em; white-space: nowrap; }
+        .foot .fd { color: var(--tx-2); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .foot .in { animation: footin .5s ease both; display: contents; }
+        @keyframes footin { from { opacity: 0; } }
         .sparkle { position: fixed; pointer-events: none; font-size: 1.2em; animation: sparkle 1.2s ease-out forwards; }
         @keyframes sparkle { to { transform: translateY(-2em) scale(1.4); opacity: 0; } }
     </style>
@@ -86,6 +93,7 @@
         </div>
         <div class="bar" id="bar"><i id="barFill"></i></div>
         <div class="viewport" id="viewport"><div class="track" id="track"></div></div>
+        <div class="foot" id="foot"></div>
     </div>
     <script type="module">
         import { connect, params, esc, fmt, remaining, readable, isPreview } from '/overlay/overlay.js';
@@ -201,7 +209,23 @@
             }
         }, 1000);
 
-        connect(s => { snap = s; render(); });
+        // Bandeau des commandes : une commande du chat à la fois.
+        let footIdx = 0;
+        function footCmds() {
+            if (!snap || !snap.overlay.commandsFooter || !snap.commands) return [];
+            return snap.commands.filter(g => !g.mod).flatMap(g => g.cmds.filter(c => c.enabled));
+        }
+        function drawFoot() {
+            const list = footCmds();
+            const el = $('foot');
+            if (!list.length) { el.innerHTML = ''; return; }
+            footIdx %= list.length;
+            const c = list[footIdx];
+            el.innerHTML = `<span class="in"><span class="fi">💡</span><span class="fc">${esc(c.cmd)}</span><span class="fd">${esc(c.short || c.desc)}</span></span>`;
+        }
+        setInterval(() => { footIdx++; drawFoot(); }, 6000);
+
+        connect(s => { snap = s; render(); if (!$('foot').innerHTML || !s.overlay.commandsFooter) drawFoot(); });
     </script>
 </body>
 </html>

@@ -116,7 +116,23 @@ Ajoute une **Source navigateur** dans OBS :
 | Minuteur (anneau) | `http://localhost:3210/overlay/timer` | 420 × 420 | `?scale=2` → 840 × 840 |
 | Minuteur (bandeau) | `http://localhost:3210/overlay/timer?style=bar` | 900 × 120 | `&scale=2` |
 
-Autres options : `?user=pseudo` (la liste d'une seule personne), `?hideIdle=1` (minuteur caché quand il ne tourne pas), `?sound=0` (sans carillon).
+| Commandes du chat | `http://localhost:3210/overlay/commands` | 600 × 620 | `?scale=2` → 1200 × 1240 |
+| Commandes (bandeau) | `http://localhost:3210/overlay/commands?style=ticker` | 940 × 110 | `&scale=2` |
+
+Autres options : `?user=pseudo` (la liste d'une seule personne), `?hideIdle=1` (minuteur caché quand il ne tourne pas), `?sound=0` (sans carillon), `?group=pomo` (overlay Commandes figé sur un thème), `?mods=1` (commandes des modos incluses).
+
+### Panneau de contrôle dans OBS
+
+OBS → menu **Docks → Custom Browser Docks** → Nom : `Pomodoro`, URL : `http://localhost:3210/dock` → **Appliquer**. Le panneau s'ancre où tu veux dans OBS et permet de :
+
+- afficher ou masquer chaque overlay (tâches, minuteur, commandes) ;
+- activer ou couper le bandeau de commandes, les tâches terminées et les minuteurs du chat ;
+- régler en direct la taille du texte, la vitesse de défilement, le nombre de tes tâches à venir et la rotation des commandes ;
+- piloter le minuteur (presets, pause, phase suivante, ±5 min, arrêt) ;
+- gérer ta liste de stream (ajouter, terminer, enchaîner) et valider ou retirer les tâches du chat ;
+- taper une commande comme dans le chat.
+
+Depuis le chat (modos) : `!overlay hide/show`, `!overlay timer hide/show`, `!overlay commands hide/show`.
 
 Couleurs, titre, taille du texte, vitesse de défilement… se règlent dans **Stream → Overlays OBS**, avec un aperçu en direct.
 

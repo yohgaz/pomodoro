@@ -90,7 +90,7 @@
             const ring = $('ring');
             ring.classList.toggle('paused', !!(t && t.paused));
             ring.classList.toggle('idle', !t);
-            $('wrap').classList.toggle('is-idle-hidden', !t && hideIdle);
+            $('wrap').classList.toggle('is-idle-hidden', (!t && hideIdle) || (!!snap.timerHidden && !isPreview));
             if (!t) {
                 root.style.setProperty('--col', '#A6A29B');
                 $('phase').textContent = L.idleLabel; $('time').textContent = '--:--'; $('label').textContent = ''; $('dots').innerHTML = '';

@@ -66,6 +66,12 @@ assert.match(say(viewer, '!fullreset'), /confirm/);
 assert.match(say(streamer, '!tasklock on'), /verrouillée/);
 assert.match(say(viewer, '!task test'), /en pause/);
 assert.match(say(streamer, '!tasklock off'), /ouverte/);
+assert.match(say(streamer, '!overlay timer hide'), /minuteur masqué/);
+assert.equal(engine.snapshot().timerHidden, true);
+assert.match(say(streamer, '!overlay commands show'), /commandes affiché/);
+assert.match(say(streamer, '!overlay hide'), /tâches masqué/);
+assert.equal(engine.snapshot().hidden, true);
+assert.ok(engine.snapshot().commands.length >= 5);
 
 const snap = engine.snapshot();
 assert.ok(snap.users.length >= 1);

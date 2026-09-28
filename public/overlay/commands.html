@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>Pomodoro — overlay commandes</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/theme.css">
+    <style>
+        html, body { margin: 0; background: transparent; overflow: hidden; }
+        body { font-family: var(--font); color: var(--tx); padding: 20px; -webkit-font-smoothing: antialiased; }
+        .card {
+            --fs: 18px; --acc: #F0653D;
+            width: 560px; font-size: var(--fs);
+            background: rgba(17, 19, 27, var(--bg-op, .9));
+            border: 1px solid rgba(255, 255, 255, .08); border-radius: 1.2em;
+            box-shadow: 0 1.2em 3em rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .06);
+            overflow: hidden; position: relative;
+            transition: opacity .6s ease, transform .6s ease;
+        }
+        .card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--acc), #E8B84D, #6FDA9A); }
+        .card.is-hidden { opacity: 0; transform: translateY(-12px) scale(.98); }
+        .head { display: flex; align-items: center; gap: .6em; padding: .95em 1.15em .5em; }
+        .head .ico { font-size: 1.5em; }
+        .head .t { font-weight: 900; font-size: 1.1em; flex: 1; }
+        .dots { display: flex; gap: .35em; }
+        .dots i { width: .45em; height: .45em; border-radius: 50%; background: rgba(255, 255, 255, .14); transition: background .4s, transform .4s; }
+        .dots i.on { background: var(--acc); transform: scale(1.25); }
+        .group { padding: .2em 1.15em 1em; }
+        .gtitle { font-size: .72em; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--acc); margin: .3em 0 .6em; }
+        .row { display: flex; align-items: baseline; gap: .7em; padding: .32em 0; border-bottom: 1px solid rgba(255, 255, 255, .05); }
+        .row:last-child { border-bottom: 0; }
+        .cmd { font-family: var(--font-mono); font-weight: 700; font-size: .8em; color: #E8B84D; background: rgba(232, 184, 77, .1); border-radius: .4em; padding: .1em .45em; white-space: nowrap; flex-shrink: 0; }
+        .desc { font-weight: 700; font-size: .84em; color: var(--tx-2); line-height: 1.35; }
+        .alias { font-size: .72em; color: var(--mu); font-weight: 700; white-space: nowrap; margin-left: auto; padding-left: .5em; }
+        .enter { animation: enter .6s cubic-bezier(.3, 1.2, .5, 1) both; }
+        @keyframes enter { from { opacity: 0; transform: translateX(1.2em); } }
+        .progress { height: 2px; background: rgba(255, 255, 255, .06); }
+        .progress i { display: block; height: 100%; width: 0; background: var(--acc); }
+
+        /* Bandeau (?style=ticker) : une commande à la fois */
+        body.ticker .card { width: 900px; border-radius: 1em; }
+        body.ticker .head, body.ticker .group, body.ticker .progress { display: none; }
+        .tick { display: none; align-items: center; gap: .8em; padding: .8em 1.1em; }
+        body.ticker .tick { display: flex; }
+        .tick .lbl { font-size: .68em; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--acc); flex-shrink: 0; }
+        .tick .cmd { font-size: .92em; }
+        .tick .desc { font-size: .92em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style>
+</head>
+<body>
+    <div class="card" id="card">
+        <div class="head"><span class="ico" id="gIco">💬</span><span class="t" id="title"></span><span class="dots" id="dots"></span></div>
+        <div class="group" id="group"></div>
+        <div class="progress"><i id="bar"></i></div>
+        <div class="tick" id="tick"></div>
+    </div>
+    <script type="module">
+        import { connect, params, esc, isPreview } from '/overlay/overlay.js';
+        const $ = id => document.getElementById(id);
+        const ticker = params.get('style') === 'ticker';
+        if (ticker) document.body.classList.add('ticker');
+        const fixed = params.get('group');
+        let snap = null, groups = [], page = 0, cmdIdx = 0, lastKey = '', timer = null, startedAt = 0;
+
+        function compute() {
+            const cs = snap.commandsSettings || {};
+            const wanted = new Set(cs.groups || []);
+            const mods = params.get('mods') === '1' || cs.showMods;
+            groups = snap.commands
+                .filter(g => fixed ? g.id === fixed : ((wanted.size ? wanted.has(g.id) : true) || (mods && g.id === 'mods')))
+                .filter(g => !g.mod || mods || fixed === g.id)
+                .map(g => ({ ...g, cmds: g.cmds.filter(c => c.enabled) }))
+                .filter(g => g.cmds.length);
+        }
+
+        function drawPage(animate = true) {
+            if (!groups.length) { $('group').innerHTML = ''; return; }
+            page %= groups.length;
+            const g = groups[page];
+            $('gIco').textContent = g.icon;
+            $('dots').innerHTML = groups.length > 1 ? groups.map((_, i) => `<i class="${i === page ? 'on' : ''}"></i>`).join('') : '';
+            $('group').innerHTML = `<div class="${animate ? 'enter' : ''}"><div class="gtitle">${esc(g.title)}</div>${g.cmds.map(c =>
+                `<div class="row"><span class="cmd">${esc(c.cmd)}</span><span class="desc">${esc(c.short || c.desc)}</span>${c.alias ? `<span class="alias">ou !${esc(c.alias)}</span>` : ''}</div>`).join('')}</div>`;
+        }
+
+        function drawTick() {
+            const all = groups.flatMap(g => g.cmds.map(c => ({ ...c, g })));
+            if (!all.length) { $('tick').innerHTML = ''; return; }
+            cmdIdx %= all.length;
+            const c = all[cmdIdx];
+            $('tick').innerHTML = `<span class="lbl">${esc(c.g.icon)} ${esc(c.g.title)}</span><span class="cmd enter">${esc(c.cmd)}</span><span class="desc enter">${esc(c.short || c.desc)}</span>`;
+        }
+
+        function schedule() {
+            clearInterval(timer);
+            const secs = Math.max(3, Number((snap.commandsSettings || {}).rotateSeconds) || 12);
+            const every = ticker ? Math.max(3, secs / 2) : secs;
+            startedAt = Date.now();
+            timer = setInterval(() => {
+                startedAt = Date.now();
+                if (ticker) { cmdIdx++; drawTick(); } else if (groups.length > 1) { page++; drawPage(); }
+            }, every * 1000);
+            const tickBar = () => {
+                const el = $('bar');
+                if (el) el.style.width = `${Math.min(100, (Date.now() - startedAt) / (every * 10))}%`;
+                requestAnimationFrame(tickBar);
+            };
+            if (!schedule.bar) { schedule.bar = true; requestAnimationFrame(tickBar); }
+        }
+
+        function render() {
+            const o = snap.overlay;
+            const card = $('card');
+            card.style.setProperty('--fs', (o.fontSize - 1) + 'px');
+            card.style.setProperty('--acc', o.accent);
+            card.style.setProperty('--bg-op', o.bgOpacity);
+            if (!ticker) card.style.width = o.width + 'px';
+            card.classList.toggle('is-hidden', !!snap.commandsHidden && !isPreview);
+            $('title').textContent = (snap.commandsSettings || {}).title || 'Commandes du chat';
+            compute();
+            const key = JSON.stringify([groups.map(g => [g.id, g.cmds.length]), snap.commandsSettings, o.fontSize]);
+            if (key !== lastKey) {
+                lastKey = key;
+                if (ticker) drawTick(); else drawPage(false);
+                schedule();
+            }
+        }
+        connect(s => { snap = s; render(); });
+    </script>
+</body>
+</html>

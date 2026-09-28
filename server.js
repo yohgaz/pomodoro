@@ -298,6 +298,7 @@ route('POST', '/api/stream/action', async ({ req }) => {
     return engine.web(b.op, b);
 });
 route('GET', '/api/settings', () => engine.settings());
+route('GET', '/api/commands', () => require('./lib/commands-list').commandsFor(engine.settings().chat));
 route('PUT', '/api/settings', async ({ req }) => engine.saveSettings(await readJson(req)));
 
 // Réglages locaux de la machine
@@ -373,7 +374,9 @@ async function handle(req, res) {
         const f = safeJoin(path.join(DATA, 'files'), p.slice(7));
         return f ? serveFile(res, f, { cache: true }) : send(res, 400, 'Chemin invalide');
     }
-    if (p === '/overlay/tasks' || p === '/overlay/timer') return serveFile(res, path.join(PUBLIC, 'overlay', p.slice(9) + '.html'));
+    if (['/overlay/tasks', '/overlay/timer', '/overlay/commands'].includes(p)) return serveFile(res, path.join(PUBLIC, 'overlay', p.slice(9) + '.html'));
+    // Panneau de contrôle à ancrer dans OBS (Docks → Custom Browser Docks).
+    if (p === '/dock') return serveFile(res, path.join(PUBLIC, 'dock', 'index.html'));
     if (p === '/' || p === '/index.html' || p.startsWith('/n/') || p.startsWith('/v/') || p.startsWith('/stream') || ['/timer', '/settings', '/tasks', '/review'].includes(p)) {
         return serveFile(res, path.join(PUBLIC, 'app', 'index.html'));
     }

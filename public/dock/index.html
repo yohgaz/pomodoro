@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pomodoro — panneau OBS</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/theme.css">
+    <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; background: var(--bg); color: var(--tx); font-family: var(--font); font-size: 13.5px; -webkit-font-smoothing: antialiased; }
+        button, input { font: inherit; color: inherit; }
+        button { cursor: pointer; }
+        .top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: var(--bg-2); border-bottom: 1px solid var(--line); }
+        .top svg { width: 22px; height: 22px; flex-shrink: 0; }
+        .top b { flex: 1; font-weight: 900; font-size: 14.5px; }
+        .pill { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 20px; background: var(--c3); color: var(--mu); white-space: nowrap; }
+        .pill.ok { background: var(--mint-soft); color: var(--mint); }
+        .pill.acc { background: var(--accent-soft); color: var(--accent); }
+        .sec { margin: 8px; background: var(--c1); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+        .sec > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 9px 11px; font-weight: 900; font-size: 13px; cursor: pointer; user-select: none; }
+        .sec > summary::-webkit-details-marker { display: none; }
+        .sec > summary::after { content: '▾'; margin-left: auto; color: var(--mu-2); transition: transform .15s; }
+        .sec:not([open]) > summary::after { transform: rotate(-90deg); }
+        .sec > summary .extra { margin-left: auto; font-size: 11.5px; color: var(--mu); font-weight: 800; }
+        .body { padding: 2px 11px 11px; }
+        .sw { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+        .sw:last-child { border-bottom: 0; }
+        .sw span { flex: 1; font-weight: 700; }
+        .sw small { display: block; color: var(--mu); font-weight: 600; font-size: 11.5px; }
+        .sw input { appearance: none; width: 36px; height: 21px; border-radius: 20px; background: var(--c4); position: relative; flex-shrink: 0; transition: background .15s; cursor: pointer; }
+        .sw input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 15px; height: 15px; border-radius: 50%; background: #fff; transition: transform .15s; }
+        .sw input:checked { background: var(--mint); }
+        .sw input:checked::after { transform: translateX(15px); }
+        .sw.big span { font-size: 14px; }
+        .range { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 6px 0; font-weight: 700; }
+        .range input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+        .range em { font-style: normal; color: var(--mu); font-weight: 800; }
+        .btns { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+        .b { border: 1px solid var(--line-strong); background: var(--c3); border-radius: 9px; padding: 6px 10px; font-weight: 800; font-size: 12.5px; flex: 1 1 auto; white-space: nowrap; }
+        .b:hover { background: var(--c4); }
+        .b.acc { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .b.mint { background: var(--mint); border-color: var(--mint); color: #0B0D14; }
+        .b.ghost { background: none; }
+        .b.sm { flex: 0 0 auto; padding: 4px 8px; }
+        .timer { display: flex; align-items: center; gap: 12px; }
+        .timer .t { font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: -1px; line-height: 1; }
+        .timer .ph { font-size: 11px; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; }
+        .timer .lb { color: var(--mu); font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+        .bar { height: 5px; background: var(--c4); border-radius: 5px; overflow: hidden; margin-top: 8px; }
+        .bar i { display: block; height: 100%; background: var(--accent); transition: width 1s linear; }
+        .task { display: flex; align-items: flex-start; gap: 7px; padding: 6px 0; border-bottom: 1px solid var(--line); font-weight: 700; }
+        .task:last-child { border-bottom: 0; }
+        .task .tx { flex: 1; min-width: 0; line-height: 1.35; word-break: break-word; }
+        .task .who { display: block; font-size: 11.5px; font-weight: 900; }
+        .task .ib { border: 0; background: var(--c3); border-radius: 7px; width: 26px; height: 26px; flex-shrink: 0; font-size: 12px; }
+        .task .ib:hover { background: var(--c4); }
+        .task.active { color: #fff; }
+        .task.next { color: var(--mu); font-size: 12.5px; }
+        .in { width: 100%; background: var(--c2); border: 1px solid var(--line-strong); border-radius: 9px; padding: 7px 10px; outline: none; font-weight: 700; margin-top: 7px; }
+        .in:focus { border-color: var(--accent); }
+        .muted { color: var(--mu); font-weight: 600; font-size: 12px; }
+        .log { margin-top: 7px; font-size: 12px; color: var(--mint); font-weight: 700; max-height: 90px; overflow-y: auto; }
+        .row2 { display: flex; gap: 6px; align-items: center; }
+        .row2 .in { flex: 1; }
+        .toast { position: fixed; left: 8px; right: 8px; bottom: 8px; background: var(--c3); border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 10px; font-weight: 800; font-size: 12.5px; box-shadow: var(--shadow); z-index: 10; }
+    </style>
+</head>
+<body>
+    <div class="top">
+        <svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="23" fill="#F0653D"/><path d="M32 14c-3 0-6 1.5-8 4 3 0 5 .5 6.5 2-3 .5-6 2.5-7.5 5 3.5-1 7-1 9 0 2-1 5.5-1 9 0-1.5-2.5-4.5-4.5-7.5-5 1.5-1.5 3.5-2 6.5-2-2-2.5-5-4-8-4Z" fill="#6FDA9A"/></svg>
+        <b>Pomodoro</b>
+        <span class="pill" id="botPill">…</span>
+    </div>
+
+    <details class="sec" data-sec="display" open>
+        <summary>👁️ Affichages</summary>
+        <div class="body">
+            <label class="sw big"><span>Liste de tâches</span><input type="checkbox" data-vis="tasks"></label>
+            <label class="sw big"><span>Minuteur</span><input type="checkbox" data-vis="timer"></label>
+            <label class="sw big"><span>Commandes</span><input type="checkbox" data-vis="commands"></label>
+            <label class="sw"><span>Bandeau des commandes<small>en bas de la liste de tâches</small></span><input type="checkbox" data-set="overlay.commandsFooter"></label>
+            <label class="sw"><span>Tâches terminées</span><input type="checkbox" data-set="overlay.showDone"></label>
+            <label class="sw"><span>Minuteurs du chat</span><input type="checkbox" data-set="overlay.showPomo"></label>
+            <label class="sw"><span>Commandes des modos<small>dans l’overlay Commandes</small></span><input type="checkbox" data-set="commands.showMods"></label>
+            <label class="sw"><span>Liste réservée aux modos<small>!tasklock</small></span><input type="checkbox" data-set="chat.viewersLocked"></label>
+            <div class="range"><span>Taille du texte</span><em data-val="overlay.fontSize"></em><input type="range" min="12" max="40" data-set="overlay.fontSize"></div>
+            <div class="range"><span>Vitesse de défilement</span><em data-val="overlay.scrollSpeed"></em><input type="range" min="5" max="150" data-set="overlay.scrollSpeed"></div>
+            <div class="range"><span>Tes tâches à venir affichées</span><em data-val="overlay.streamerNext"></em><input type="range" min="0" max="8" data-set="overlay.streamerNext"></div>
+            <div class="range"><span>Rotation des commandes (s)</span><em data-val="commands.rotateSeconds"></em><input type="range" min="4" max="40" data-set="commands.rotateSeconds"></div>
+            <div class="btns"><button class="b" id="newSession">✨ Nouvelle session</button><button class="b ghost" id="openApp">⚙️ Tous les réglages</button></div>
+        </div>
+    </details>
+
+    <details class="sec" data-sec="timer" open>
+        <summary>🍅 Minuteur <span class="extra" id="timerExtra"></span></summary>
+        <div class="body">
+            <div class="timer"><div><div class="ph" id="tPhase">—</div><div class="t" id="tTime">--:--</div></div><div class="lb" id="tLabel"></div></div>
+            <div class="bar"><i id="tBar"></i></div>
+            <div class="btns" id="tControls">
+                <button class="b acc" data-t="toggle">⏯ Pause</button><button class="b" data-t="skip">⏭ Suivante</button>
+                <button class="b sm" data-t="minus">−5</button><button class="b sm" data-t="plus">+5</button><button class="b sm" data-t="stop">⏹</button>
+            </div>
+            <div class="btns">
+                <button class="b" data-start="25/5/4">25/5 ×4</button><button class="b" data-start="50/10/4">50/10 ×4</button><button class="b" data-start="90/15/2">90/15 ×2</button>
+            </div>
+            <input class="in" id="tName" placeholder="Nom du minuteur (facultatif)">
+        </div>
+    </details>
+
+    <details class="sec" data-sec="mine" open>
+        <summary>🎥 Ma liste <span class="extra" id="mineExtra"></span></summary>
+        <div class="body">
+            <div id="mine"></div>
+            <input class="in" id="mineAdd" placeholder="Ajouter… (Entrée = à la suite, Maj+Entrée = maintenant)">
+        </div>
+    </details>
+
+    <details class="sec" data-sec="chat" open>
+        <summary>💬 Tâches du chat <span class="extra" id="chatExtra"></span></summary>
+        <div class="body" id="chat"></div>
+    </details>
+
+    <details class="sec" data-sec="console">
+        <summary>⌨️ Taper une commande</summary>
+        <div class="body">
+            <div class="row2"><input class="in" id="cmd" placeholder="!task …, !timer 25/5, !overlay commands show"></div>
+            <label class="sw"><span>Répondre aussi dans le chat</span><input type="checkbox" id="cmdChat"></label>
+            <div class="log" id="cmdLog"></div>
+        </div>
+    </details>
+
+    <script type="module">
+        const $ = id => document.getElementById(id);
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const fmt = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s % 60).padStart(2, '0'); };
+        const api = (method, url, body) => fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined }).then(r => r.json());
+        const act = (op, b = {}) => api('POST', '/api/stream/action', { op, ...b });
+        let snap = null, settings = null, streamerUser = null;
+        function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800); }
+
+        // Sections repliées : mémorisées dans le dock
+        document.querySelectorAll('details[data-sec]').forEach(d => {
+            try { const v = localStorage.getItem('dock.' + d.dataset.sec); if (v !== null) d.open = v === '1'; } catch (e) { /* rien */ }
+            d.addEventListener('toggle', () => { try { localStorage.setItem('dock.' + d.dataset.sec, d.open ? '1' : '0'); } catch (e) { /* rien */ } });
+        });
+
+        // ── Affichages ──
+        const getPath = (o, p) => p.split('.').reduce((x, k) => x && x[k], o);
+        document.querySelectorAll('[data-vis]').forEach(i => i.addEventListener('change', () => act('visibility', { target: i.dataset.vis, visible: i.checked })));
+        let saveT = null;
+        const pending = {};
+        document.querySelectorAll('[data-set]').forEach(i => {
+            const ev = i.type === 'range' ? 'input' : 'change';
+            i.addEventListener(ev, () => {
+                const [grp, key] = i.dataset.set.split('.');
+                (pending[grp] = pending[grp] || {})[key] = i.type === 'checkbox' ? i.checked : Number(i.value);
+                const em = document.querySelector(`[data-val="${i.dataset.set}"]`); if (em) em.textContent = i.value;
+                clearTimeout(saveT);
+                saveT = setTimeout(async () => { const p = { ...pending }; for (const k of Object.keys(pending)) delete pending[k]; settings = await api('PUT', '/api/settings', p); }, 250);
+            });
+        });
+        $('newSession').onclick = async () => { if (confirm('Nouvelle session : les tâches terminées disparaissent de l’overlay. Continuer ?')) { await act('newSession'); toast('Nouvelle session ✨'); } };
+        $('openApp').onclick = () => window.open('/stream/overlay', '_blank');
+
+        function drawSettings() {
+            if (!settings) return;
+            document.querySelectorAll('[data-set]').forEach(i => {
+                if (document.activeElement === i) return;
+                const v = getPath(settings, i.dataset.set);
+                if (i.type === 'checkbox') i.checked = !!v; else i.value = v;
+                const em = document.querySelector(`[data-val="${i.dataset.set}"]`); if (em) em.textContent = v;
+            });
+        }
+
+        // ── Minuteur ──
+        const T = (cmd, extra = {}) => act('timer', { cmd, ...extra });
+        document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => {
+            const k = b.dataset.t;
+            if (k === 'minus') T('adjust', { minutes: -5 }); else if (k === 'plus') T('adjust', { minutes: 5 }); else T(k);
+        });
+        document.querySelectorAll('[data-start]').forEach(b => b.onclick = () => {
+            const [work, brk, goal] = b.dataset.start.split('/').map(Number);
+            T('start', { work, brk, goal, label: $('tName').value.trim() });
+        });
+        function drawTimer() {
+            const t = snap && snap.timer;
+            const ts = snap.timerSettings;
+            $('tControls').style.display = t && t.phase !== 'done' ? '' : 'none';
+            if (!t) { $('tPhase').textContent = ts.idleLabel; $('tPhase').style.color = 'var(--mu)'; $('tTime').textContent = '--:--'; $('tLabel').textContent = ''; $('tBar').style.width = '0%'; $('timerExtra').textContent = ''; return; }
+            const rem = t.phase === 'done' ? 0 : t.paused ? t.remaining : Math.max(0, t.endsAt - Date.now());
+            const col = t.phase === 'break' ? 'var(--mint)' : t.phase === 'done' ? 'var(--gold)' : 'var(--accent)';
+            $('tPhase').textContent = t.paused ? 'En pause' : t.phase === 'work' ? ts.focusLabel : t.phase === 'break' ? ts.breakLabel : ts.doneLabel;
+            $('tPhase').style.color = col;
+            $('tTime').textContent = fmt(rem);
+            $('tLabel').textContent = t.label || '';
+            $('tBar').style.width = `${t.phase === 'done' ? 100 : Math.max(0, 100 - rem * 100 / (t.phaseDuration || 1))}%`;
+            $('tBar').style.background = col;
+            $('timerExtra').textContent = `${t.completed}/${t.goal}`;
+            document.querySelector('[data-t="toggle"]').textContent = t.paused ? '▶ Reprendre' : '⏸ Pause';
+        }
+        setInterval(() => { if (snap) drawTimer(); }, 1000);
+
+        // ── Ma liste ──
+        async function loadMine() {
+            if (!snap || !snap.streamer) return;
+            streamerUser = await api('GET', `/api/stream/users/${encodeURIComponent(snap.streamer)}`);
+            drawMine();
+        }
+        function drawMine() {
+            const box = $('mine');
+            if (!streamerUser) { box.innerHTML = '<div class="muted">Chaîne Twitch non configurée.</div>'; return; }
+            const p = streamerUser.projects.find(x => x.id === streamerUser.currentProject) || streamerUser.projects[0];
+            const login = streamerUser.login;
+            const rows = [];
+            if (p.active) rows.push(`<div class="task active"><span class="tx">⚡ ${esc(p.active.text)}</span><button class="ib" title="Terminer" data-done="${p.active.id}">✓</button><button class="ib" title="Terminer et passer à la suivante" data-donenext="1">⏭</button></div>`);
+            else rows.push('<div class="muted" style="padding:4px 0">Rien en cours.</div>');
+            p.backlog.slice(0, 6).forEach((t, i) => rows.push(`<div class="task next"><span class="tx">${i + 1}. ${esc(t.text)}</span><button class="ib" title="Commencer" data-start-task="${t.id}">▶</button><button class="ib" title="Supprimer" data-del="${t.id}">✕</button></div>`));
+            if (p.backlog.length > 6) rows.push(`<div class="muted">+ ${p.backlog.length - 6} autres</div>`);
+            box.innerHTML = rows.join('');
+            $('mineExtra').textContent = `${p.backlog.length + (p.active ? 1 : 0)}`;
+            box.querySelectorAll('[data-done]').forEach(b => b.onclick = () => act('done', { login, taskId: b.dataset.done }));
+            box.querySelectorAll('[data-donenext]').forEach(b => b.onclick = () => act('say', { login, text: '!done next' }));
+            box.querySelectorAll('[data-start-task]').forEach(b => b.onclick = () => act('activate', { login, taskId: b.dataset.startTask }));
+            box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => act('remove', { login, taskId: b.dataset.del }));
+        }
+        $('mineAdd').addEventListener('keydown', async e => {
+            if (e.key !== 'Enter' || !snap) return;
+            const text = e.target.value.trim();
+            if (!text) return;
+            e.target.value = '';
+            const p = streamerUser && (streamerUser.projects.find(x => x.id === streamerUser.currentProject) || streamerUser.projects[0]);
+            const where = e.shiftKey || !(p && p.active) ? 'active' : 'backlog';
+            const r = await act('add', { login: snap.streamer, text, where });
+            if (r.ok === false) toast(r.error);
+        });
+
+        // ── Chat ──
+        function drawChat() {
+            const users = snap.users.filter(u => !u.isStreamer);
+            $('chatExtra').textContent = `${snap.totals.done}/${snap.totals.total} faites`;
+            if (!users.length) { $('chat').innerHTML = '<div class="muted">Personne n’a encore de tâche.</div>'; return; }
+            $('chat').innerHTML = users.map(u => `<div class="task"><span class="tx"><span class="who" style="color:${esc(u.color)}">${esc(u.name)}${u.pomo && u.pomo.phase !== 'done' ? ' 🍅' : ''}</span>${u.active ? esc(u.active.text) : `<span class="muted">${u.doneCount} faite${u.doneCount > 1 ? 's' : ''}</span>`}</span>${u.active ? `<button class="ib" title="Marquer comme faite" data-cdone="${esc(u.login)}|${u.active.id}">✓</button><button class="ib" title="Retirer cette tâche" data-cdel="${esc(u.login)}|${u.active.id}">✕</button>` : ''}</div>`).join('');
+            $('chat').querySelectorAll('[data-cdone]').forEach(b => b.onclick = () => { const [login, taskId] = b.dataset.cdone.split('|'); act('done', { login, taskId }); });
+            $('chat').querySelectorAll('[data-cdel]').forEach(b => b.onclick = () => { const [login, taskId] = b.dataset.cdel.split('|'); act('remove', { login, taskId }); });
+        }
+
+        // ── Console ──
+        $('cmd').addEventListener('keydown', async e => {
+            if (e.key !== 'Enter' || !snap) return;
+            const text = e.target.value.trim();
+            if (!text) return;
+            e.target.value = '';
+            const r = await act('say', { login: snap.streamer || 'moi', text, sendToChat: $('cmdChat').checked });
+            $('cmdLog').innerHTML = (r.replies && r.replies.length ? r.replies : ['(pas de réponse)']).map(x => `↳ ${esc(x)}`).join('<br>');
+        });
+
+        // ── Temps réel ──
+        function render() {
+            document.querySelector('[data-vis="tasks"]').checked = !snap.hidden;
+            document.querySelector('[data-vis="timer"]').checked = !snap.timerHidden;
+            document.querySelector('[data-vis="commands"]').checked = !snap.commandsHidden;
+            drawTimer();
+            drawChat();
+        }
+        function drawBot(b) {
+            const pill = $('botPill');
+            if (!b) return;
+            pill.className = 'pill ' + (b.connected ? 'ok' : b.mode === 'off' ? '' : 'acc');
+            pill.textContent = b.connected ? `● #${b.channel}` : b.mode === 'off' ? 'bot coupé' : 'bot en veille';
+            pill.title = b.connected ? (b.anonymous ? 'Connecté en lecture seule (pas de jeton)' : 'Le bot répond dans le chat') : 'Le bot se connecte dès qu’un overlay est affiché dans OBS';
+        }
+        let mineT = null;
+        const es = new EventSource('/api/events');
+        es.addEventListener('stream', ev => {
+            snap = JSON.parse(ev.data);
+            render();
+            clearTimeout(mineT); mineT = setTimeout(loadMine, 150);
+        });
+        es.addEventListener('bot', ev => drawBot(JSON.parse(ev.data)));
+        es.addEventListener('settings', ev => { settings = JSON.parse(ev.data); drawSettings(); });
+        (async () => {
+            const st = await api('GET', '/api/state');
+            settings = st.settings; drawSettings(); drawBot(st.bot);
+        })();
+    </script>
+</body>
+</html>
