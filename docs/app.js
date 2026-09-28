@@ -55,7 +55,8 @@ const isArchived = n => !!(n.archived || (cont(n.container) && cont(n.container)
 const startOfDay = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
 function notesFor(view, q = '') {
-    let list = store.list();
+    // Les fiches de bases de données (recettes…) n'encombrent pas les listes, sauf en recherche.
+    let list = store.list().filter(n => !n.db || q.trim());
     const [k, arg] = view.includes(':') ? [view.slice(0, view.indexOf(':')), view.slice(view.indexOf(':') + 1)] : [view, ''];
     if (k === 'trash') list = list.filter(n => n.trashed);
     else {
@@ -141,7 +142,7 @@ function renderHome() {
 
     const filters = [['todo', '☑️', 'À faire'], ['today', '📅', 'Aujourd’hui'], ['all', '🗂️', 'Toutes les notes'], ['trash', '🗑️', 'Corbeille']];
     const tagCounts = new Map();
-    for (const n of all) if (!n.trashed) for (const t of meta(n).tags) { const top = t.split('/')[0]; tagCounts.set(top, (tagCounts.get(top) || 0) + 1); }
+    for (const n of all) if (!n.trashed && !n.db) for (const t of meta(n).tags) { const top = t.split('/')[0]; tagCounts.set(top, (tagCounts.get(top) || 0) + 1); }
     app.innerHTML = `
     <div class="screen">
         <div class="topbar"><h1>${TOMATO} Pomodoro</h1>
@@ -225,7 +226,7 @@ const todayIso = () => isoOf(new Date());
 function openTasks() {
     const out = [];
     for (const n of store.list()) {
-        if (n.trashed || isArchived(n) || isTemplate(n) || !meta(n).tasks.open) continue;
+        if (n.trashed || n.db || isArchived(n) || isTemplate(n) || !meta(n).tasks.open) continue;
         for (const t of taskLinesOf(n.body)) if (!t.checked && t.text) out.push({ ...t, note: n });
     }
     return out;

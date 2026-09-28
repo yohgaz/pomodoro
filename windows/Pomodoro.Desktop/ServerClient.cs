@@ -78,6 +78,18 @@ public sealed class ServerClient
         catch { return false; }
     }
 
+    // POST qui renvoie un objet JSON (ex. { id } de la liste de courses).
+    public async Task<JsonDocument?> PostForJsonAsync(string path, object body)
+    {
+        try
+        {
+            using var r = await http.PostAsync(BaseUrl + path, new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"));
+            if (!r.IsSuccessStatusCode) return null;
+            return JsonDocument.Parse(await r.Content.ReadAsStringAsync());
+        }
+        catch { return null; }
+    }
+
     // Flux d'évènements (Server-Sent Events), reconnexion automatique.
     public async Task ListenAsync(string eventName, Action<JsonElement> onEvent, CancellationToken ct)
     {

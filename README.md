@@ -219,6 +219,31 @@ Le bouton 🏠/🎥 d'une tâche la fait passer d'une liste à l'autre. Les troi
 
 Après une mise à jour du code : `powershell -File scripts\windows\installer-app.ps1` (nécessite le SDK .NET 8).
 
+## 9. Bases de données, recettes et calendrier
+
+**Bases de données** (barre latérale → *Bases de données*, **+** pour en créer une) : chaque fiche est une note Markdown avec des propriétés (sélection, multi-sélection, nombre, date, case à cocher, lien…). Vues **Galerie**, **Tableau** (cellules modifiables) et **Par catégorie** (kanban, glisser les cartes d'une colonne à l'autre). Les fiches ne s'affichent pas dans les vues de notes, mais la recherche les trouve.
+
+**Recettes** : 26 recettes de départ. Supprime celles qui ne te plaisent pas : ⋯ puis corbeille sur la page d'édition. Un clic sur une carte ouvre une vraie page de recette :
+- en-tête avec l'émoji, la description et les étiquettes ;
+- les temps (préparation, cuisson, total) ;
+- les **portions ajustables** : les quantités se recalculent ;
+- les ingrédients à cocher en cuisinant, les étapes numérotées, les astuces.
+
+« Modifier » ouvre les propriétés et le texte. Garde les titres `## Ingrédients` (une ligne par ingrédient, ex. `200 g de riz`) et `## Préparation`.
+
+**📅 Calendrier** : vue *Semaine* (agenda plus lignes Petit-déj / Midi / Soir) et vue *Mois*.
+- Clique sur un créneau de repas pour choisir une recette, ou glisse une recette depuis la colonne de droite.
+- Les portions en trop deviennent des **🍱 restes**, placés automatiquement aux repas suivants (midi → soir → midi du lendemain). Décoche l'option pour un plat à congeler.
+- Les événements se créent d'un clic et se déplacent en les glissant.
+
+**🛒 Liste de courses** : la note est créée d'office (domaine *Maison*, épinglée) et se met à jour toute seule dès qu'un repas est planifié, déplacé ou supprimé. Elle contient :
+- le menu de la semaine ;
+- les ingrédients des 7 prochains jours, **additionnés entre recettes** et **rangés par rayon** ;
+- tes cases cochées, conservées d'une mise à jour à l'autre ;
+- une section « À ajouter à la main » que l'automatisme ne touche jamais.
+
+Sur l'iPhone, elle apparaît dans *Tâches → Notes* : pratique au magasin.
+
 ## Sur le PC Windows (déjà fait)
 
 - Installé dans `C:\Users\yohan\Documents\Pomodoro`, `config.json` rempli (chaîne `emilae_tv`, bot `emilaebot`, mode auto).

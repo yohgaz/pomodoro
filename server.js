@@ -393,6 +393,12 @@ async function handle(req, res) {
         return send(res, 404, { error: 'route inconnue' });
     }
 
+    // lib/kitchen.js servi au navigateur (même calcul d'ingrédients que le serveur)
+    if (p === '/app/js/kitchen-client.js') {
+        const src = fs.readFileSync(path.join(__dirname, 'lib', 'kitchen.js'), 'utf8').replace(/module\.exports\s*=\s*\{([^}]*)\};?\s*$/, 'export {$1};\n');
+        res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
+        return res.end(src);
+    }
     if (p.startsWith('/files/')) {
         const f = safeJoin(path.join(DATA, 'files'), p.slice(7));
         return f ? serveFile(res, f, { cache: true }) : send(res, 400, 'Chemin invalide');
@@ -400,7 +406,7 @@ async function handle(req, res) {
     if (['/overlay/tasks', '/overlay/timer', '/overlay/commands', '/overlay/scene'].includes(p)) return serveFile(res, path.join(PUBLIC, 'overlay', p.slice(9) + '.html'));
     // Panneau de contrôle à ancrer dans OBS (Docks → Custom Browser Docks).
     if (p === '/dock') return serveFile(res, path.join(PUBLIC, 'dock', 'index.html'));
-    if (p === '/' || p === '/index.html' || p.startsWith('/n/') || p.startsWith('/v/') || p.startsWith('/stream') || ['/timer', '/settings', '/tasks', '/review'].includes(p)) {
+    if (p === '/' || p === '/index.html' || p.startsWith('/n/') || p.startsWith('/v/') || p.startsWith('/stream') || p.startsWith('/db/') || ['/timer', '/settings', '/tasks', '/review', '/calendar'].includes(p)) {
         return serveFile(res, path.join(PUBLIC, 'app', 'index.html'));
     }
     // Aperçu local de l'app mobile (publiée sur GitHub Pages depuis docs/).

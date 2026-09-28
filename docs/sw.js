@@ -1,6 +1,6 @@
 // Cache hors ligne de l'app mobile (le code de l'app ; les notes sont dans
 // IndexedDB). La version change à chaque « npm run build:mobile ».
-const VERSION = 'mul4xklr';
+const VERSION = 'mulbw765';
 const CACHE = 'pomodoro-' + VERSION;
 const SHELL = ['./', 'index.html', 'icon-180.png', 'app.js', 'store.js', 'md.js', 'mobile.css', 'theme.css', 'editor.css', 'icon.svg', 'manifest.webmanifest', 'vendor/editor.bundle.js'];
 

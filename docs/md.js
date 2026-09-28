@@ -15,7 +15,9 @@
 // part). Les clés inconnues (ajoutées par un autre logiciel) sont conservées.
 const KNOWN = {
     id: 'id', created: 'createdAt', updated: 'updatedAt', container: 'container',
-    pinned: 'pinned', archived: 'archived', trashed: 'trashed', trashedAt: 'trashedAt'
+    pinned: 'pinned', archived: 'archived', trashed: 'trashed', trashedAt: 'trashedAt',
+    // Fiche d'une base de données : id de la base + propriétés (JSON sur une ligne).
+    db: 'db', props: 'props'
 };
 const DATE_KEYS = new Set(['createdAt', 'updatedAt', 'trashedAt']);
 const BOOL_KEYS = new Set(['pinned', 'archived', 'trashed']);
@@ -40,6 +42,7 @@ function parse(text) {
             const key = KNOWN[kv[1]];
             const val = parseValue(kv[2]);
             if (!key) { note.extra[kv[1]] = kv[2]; continue; }
+            if (key === 'props') { try { note.props = JSON.parse(kv[2]); } catch (e) { note.props = {}; } continue; }
             if (DATE_KEYS.has(key)) { const t = Date.parse(val); if (!isNaN(t)) note[key] = t; }
             else if (BOOL_KEYS.has(key)) note[key] = val === true;
             else note[key] = String(val);
@@ -59,6 +62,8 @@ function serialize(note) {
     if (note.createdAt) lines.push(`created: ${new Date(note.createdAt).toISOString()}`);
     if (note.updatedAt) lines.push(`updated: ${new Date(note.updatedAt).toISOString()}`);
     if (note.container) lines.push(`container: ${fmtValue(note.container)}`);
+    if (note.db) lines.push(`db: ${fmtValue(note.db)}`);
+    if (note.db && note.props && Object.keys(note.props).length) lines.push(`props: ${JSON.stringify(note.props)}`);
     if (note.pinned) lines.push('pinned: true');
     if (note.archived) lines.push('archived: true');
     if (note.trashed) lines.push('trashed: true');

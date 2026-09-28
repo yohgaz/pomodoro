@@ -72,6 +72,13 @@ public partial class App : Application
         menu.Items.Add("Ouvrir Pomodoro", null, (_, _) => main.ShowAndFocus());
         menu.Items.Add("Capture rapide\tCtrl+Alt+N", null, (_, _) => ShowCapture());
         menu.Items.Add("Mes tâches", null, (_, _) => { main.ShowAndFocus(); main.Go("/tasks"); });
+        menu.Items.Add("Calendrier", null, (_, _) => { main.ShowAndFocus(); main.Go("/calendar"); });
+        menu.Items.Add("Liste de courses", null, async (_, _) =>
+        {
+            using var r = await server.PostForJsonAsync("/api/shopping/refresh", new { });
+            main.ShowAndFocus();
+            if (r != null && r.RootElement.TryGetProperty("id", out var id)) main.Go("/v/all/" + id.GetString());
+        });
         menu.Items.Add(new Forms.ToolStripSeparator());
         timerItem = new Forms.ToolStripMenuItem("🍅 Aucun minuteur") { Enabled = false };
         toggleItem = new Forms.ToolStripMenuItem("Pause / reprendre le minuteur", null, async (_, _) => await server.PostJsonAsync("/api/stream/action", new { op = "timer", cmd = "toggle" })) { Visible = false };

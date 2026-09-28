@@ -48,15 +48,17 @@ function viewPath(view, noteId) { return `/v/${encodeURIComponent(view)}${noteId
 
 async function route() {
     const p = location.pathname;
-    if (p.startsWith('/stream') || ['/timer', '/settings', '/tasks', '/review'].includes(p)) {
+    if (p.startsWith('/stream') || p.startsWith('/db/') || ['/timer', '/settings', '/tasks', '/review', '/calendar'].includes(p)) {
         await flushSave();
         app.classList.add('is-wide');
         $('widePane').hidden = false;
-        const which = p === '/settings' ? 'settings' : p === '/tasks' ? 'tasks' : p === '/review' ? 'review' : 'stream';
-        const tab = p === '/timer' ? 'timer' : p.split('/')[2];
+        const which = p === '/settings' ? 'settings' : p === '/tasks' ? 'tasks' : p === '/review' ? 'review' : p === '/calendar' ? 'calendar' : p.startsWith('/db/') ? 'db' : 'stream';
+        const parts = p.split('/');
+        const tab = p === '/timer' ? 'timer' : parts[2];
         const mod = await import(`./${which}.js`);
         S.wide = which;
-        mod.render($('widePane'), { S, navigate, tab, refreshState, refreshCounts });
+        S.wideDb = which === 'db' ? parts[2] : null;
+        mod.render($('widePane'), { S, navigate, tab, sub: parts[3] || null, refreshState, refreshCounts });
         renderSidebar();
         return;
     }
@@ -77,7 +79,8 @@ async function route() {
 
 // ── Données ──
 async function refreshCounts() {
-    const [r, tasks, perso] = await Promise.all([get('/api/notes/counts'), get('/api/tasks'), get('/api/stream/users/_perso').catch(() => null)]);
+    const [r, tasks, perso, dbs] = await Promise.all([get('/api/notes/counts'), get('/api/tasks'), get('/api/stream/users/_perso').catch(() => null), get('/api/dbs').catch(() => [])]);
+    S.dbs = dbs;
     S.counts = r.counts; S.tags = r.tags; S.containers = r.containers;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -147,9 +150,24 @@ function renderSidebar() {
     const top = h('div', { class: 'side-group', style: { marginTop: '4px' } });
     top.appendChild(navItem({ label: 'Tâches', ico: '☑️', active: S.wide === 'tasks', onclick: () => navigate('/tasks'), count: S.taskCount || '',
         extra: S.taskUrgent ? h('span', { class: 'pill accent', title: 'En retard ou pour aujourd’hui' }, `🔥 ${S.taskUrgent}`) : null }));
+    top.appendChild(navItem({ label: 'Calendrier', ico: '📅', active: S.wide === 'calendar', onclick: () => navigate('/calendar') }));
     top.appendChild(navItem({ label: 'Revue hebdo', ico: '🔁', active: S.wide === 'review', onclick: () => navigate('/review'),
         extra: reviewDue ? h('span', { class: 'pill gold' }, 'à faire') : null }));
     scroll.appendChild(top);
+
+    // Bases de données
+    const dbg = h('div', { class: 'side-group' }, h('div', { class: 'side-title' }, h('span', {}, 'Bases de données'),
+        h('button', { title: 'Nouvelle base', onclick: async e => {
+            e.preventDefault();
+            const name = await promptBox('Nouvelle base de données', { placeholder: 'Ex. Lectures, Jeux à faire, Idées de vidéos…', ok: 'Créer' });
+            if (!name) return;
+            const db = await post('/api/dbs', { name, icon: '🗃️', properties: [{ id: 'statut', name: 'Statut', type: 'select', options: [{ name: 'À faire', color: '#A6A29B' }, { name: 'En cours', color: '#E8B84D' }, { name: 'Terminé', color: '#6FDA9A' }] }, { id: 'date', name: 'Date', type: 'date' }] });
+            await refreshCounts();
+            navigate(`/db/${db.id}`);
+        } }, '+')));
+    for (const d of S.dbs || []) dbg.appendChild(navItem({ label: d.name, ico: d.icon || '🗃️', active: S.wide === 'db' && S.wideDb === d.id, onclick: () => navigate(`/db/${d.id}`) }));
+    if (!(S.dbs || []).length) dbg.appendChild(h('div', { class: 'muted', style: { fontSize: '12.5px', padding: '2px 9px 6px', fontWeight: 600 } }, 'Aucune base pour l’instant.'));
+    scroll.appendChild(dbg);
     // IPARA
     const g = h('div', { class: 'side-group' }, h('div', { class: 'side-title' }, h('span', {}, 'IPARA')));
     g.appendChild(navItem({ label: 'Inbox', view: 'inbox', count: c.inbox, active: active === 'inbox', cls: 'is-inbox', letter: { l: 'I', color: '#fff', bg: 'var(--accent)' }, drop: { container: null, archived: false } }));
