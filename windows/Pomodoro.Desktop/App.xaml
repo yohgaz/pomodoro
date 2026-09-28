@@ -1,0 +1,16 @@
+<Application x:Class="Pomodoro.Desktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <SolidColorBrush x:Key="Bg" Color="#0B0D14"/>
+        <SolidColorBrush x:Key="C1" Color="#14161F"/>
+        <SolidColorBrush x:Key="C2" Color="#191C27"/>
+        <SolidColorBrush x:Key="C3" Color="#1F2230"/>
+        <SolidColorBrush x:Key="Accent" Color="#F0653D"/>
+        <SolidColorBrush x:Key="Mint" Color="#6FDA9A"/>
+        <SolidColorBrush x:Key="Tx" Color="#F4F2ED"/>
+        <SolidColorBrush x:Key="Mu" Color="#A6A29B"/>
+        <FontFamily x:Key="Font">Nunito, Segoe UI Variable Text, Segoe UI</FontFamily>
+    </Application.Resources>
+</Application>

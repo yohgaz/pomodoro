@@ -165,6 +165,28 @@ Glisser une note sur un projet dans la barre latérale la range. Glisser des fic
 
 ---
 
+## 7. Mes tâches : Perso et Stream
+
+Page **☑️ Tâches**, trois onglets :
+
+- **🏠 Perso** : ta liste personnelle, avec une tâche en cours, les suivantes et celles faites aujourd'hui. Elle n'apparaît jamais sur l'overlay ni dans le chat.
+- **🎥 Stream** : ta liste de stream. Ta tâche en cours et les 3 suivantes s'affichent en tête de l'overlay, comme celles du chat. Tu peux aussi la piloter depuis le chat (`!task`, `!done`…).
+- **📝 Cases des notes** : toutes les cases à cocher de tes notes, classées par échéance (`📅 2026-10-02`).
+
+Le bouton 🏠/🎥 d'une tâche la fait passer d'une liste à l'autre. Les trois onglets existent aussi dans l'app iPhone.
+
+## 8. App Windows native
+
+`app-windows\Pomodoro.exe`, avec des raccourcis dans le Menu Démarrer et sur le Bureau. Elle apporte :
+
+- sa propre fenêtre, qui démarre le serveur s'il ne tourne pas ;
+- une icône 🍅 dans la zone de notification : fermer la fenêtre la range là, et le minuteur s'affiche au survol ;
+- **Ctrl+Alt+N**, depuis n'importe quelle application : capture rapide d'une note (Inbox), d'une tâche perso ou d'une tâche de stream. *Tab* change de type, *Entrée* enregistre ;
+- une notification Windows à chaque fin de focus ou de pause ;
+- clic droit sur l'icône → *Lancer avec Windows* pour qu'elle démarre avec la session, directement dans la zone de notification.
+
+Après une mise à jour du code : `powershell -File scripts\windows\installer-app.ps1` (nécessite le SDK .NET 8).
+
 ## Sur le PC Windows (déjà fait)
 
 - Installé dans `C:\Users\yohan\Documents\Pomodoro`, `config.json` rempli (chaîne `emilae_tv`, bot `emilaebot`, mode auto).

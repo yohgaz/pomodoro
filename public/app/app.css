@@ -369,3 +369,5 @@ a { color: var(--accent); }
 .review-title { font-weight: 900; font-size: 15.5px; color: var(--tx); text-decoration: none; }
 .review-title:hover { color: var(--accent); }
 .review-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.capture-row .capture-btn { white-space: nowrap; padding-left: 10px; padding-right: 10px; }
+.capture-row .capture-btn kbd { display: none; }
