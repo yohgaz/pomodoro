@@ -206,6 +206,25 @@ route('POST', '/api/notes/:id/send-task', async ({ req, params }) => {
     return engine.web('add', { login: engine.streamerLogin() || 'moi', text, where: b.where || 'backlog', noteId: params.id });
 });
 route('GET', '/api/tags', () => notes.tags());
+
+// Tâches de toutes les notes, modèles, revue hebdomadaire
+route('GET', '/api/tasks', () => notes.openTasks());
+route('POST', '/api/tasks/toggle', async ({ req }) => {
+    const b = await readJson(req);
+    const n = notes.toggleTask(b.noteId, Number(b.line), String(b.raw || ''), b.checked);
+    if (!n) throw Object.assign(new Error('case introuvable (la note a changé ?)'), { status: 409 });
+    return { ok: true, updatedAt: n.updatedAt };
+});
+route('GET', '/api/templates', () => notes.templates());
+route('POST', '/api/templates/seed', () => ({ created: notes.seedTemplates() }));
+route('POST', '/api/notes/from-template', async ({ req }) => {
+    const b = await readJson(req);
+    const n = notes.fromTemplate(b.templateId, { container: b.container });
+    if (!n) throw Object.assign(new Error('modèle introuvable'), { status: 404 });
+    return { ...n, meta: notes.meta(n) };
+});
+route('GET', '/api/review', () => ({ ...notes.reviewData(), review: engine.settings().review }));
+route('POST', '/api/review/done', () => engine.saveSettings({ review: { lastAt: Date.now() } }).review);
 route('POST', '/api/tags/rename', async ({ req }) => { const b = await readJson(req); return { changed: notes.renameTag(b.from, b.to) }; });
 
 // Conteneurs IPARA
@@ -355,7 +374,7 @@ async function handle(req, res) {
         return f ? serveFile(res, f, { cache: true }) : send(res, 400, 'Chemin invalide');
     }
     if (p === '/overlay/tasks' || p === '/overlay/timer') return serveFile(res, path.join(PUBLIC, 'overlay', p.slice(9) + '.html'));
-    if (p === '/' || p === '/index.html' || p.startsWith('/n/') || p.startsWith('/v/') || p.startsWith('/stream') || p === '/timer' || p === '/settings') {
+    if (p === '/' || p === '/index.html' || p.startsWith('/n/') || p.startsWith('/v/') || p.startsWith('/stream') || ['/timer', '/settings', '/tasks', '/review'].includes(p)) {
         return serveFile(res, path.join(PUBLIC, 'app', 'index.html'));
     }
     // Aperçu local de l'app mobile (publiée sur GitHub Pages depuis docs/).

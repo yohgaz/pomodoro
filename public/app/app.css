@@ -338,3 +338,34 @@ a { color: var(--accent); }
 .btn svg, .capture-btn svg, .chip-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 .capture-btn svg { width: 18px; height: 18px; }
 .note-card, .nav-item { text-decoration: none; }
+
+/* Nouvelle note + modèles */
+.capture-row { display: flex; gap: 6px; margin: 6px 14px 10px; }
+.capture-row .capture-btn { flex: 1; margin: 0; }
+.capture-more { width: 44px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--c2); font-size: 17px; transition: background .12s; }
+.capture-more:hover { background: var(--c3); }
+
+/* Tableau de bord des tâches */
+.dash-task { display: flex; align-items: flex-start; gap: 12px; padding: 9px 6px; border-bottom: 1px solid var(--line); transition: opacity .25s, transform .25s; }
+.dash-task:last-child { border-bottom: 0; }
+.dash-task.is-leaving { opacity: 0; transform: translateX(12px); }
+.dash-check { width: 21px; height: 21px; border-radius: 7px; border: 2px solid var(--mu-2); background: none; flex-shrink: 0; margin-top: 1px; transition: all .15s; }
+.dash-check:hover { border-color: var(--mint); background: var(--mint-soft); }
+.dash-body { flex: 1; min-width: 0; }
+.dash-text { font-weight: 700; line-height: 1.45; word-break: break-word; }
+.dash-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px; font-size: 12.5px; font-weight: 700; color: var(--mu); }
+.dash-meta a { color: var(--mu); text-decoration: none; }
+.dash-meta a:hover { color: var(--accent); }
+.dash-stream { opacity: 0; font-size: 15px; }
+.dash-task:hover .dash-stream { opacity: .8; }
+
+/* Revue hebdomadaire */
+.review-steps { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.review-step { display: flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 11px; border: 1px solid var(--line); background: var(--c2); color: var(--mu); font-weight: 800; font-size: 13.5px; }
+.review-step.is-on { border-color: var(--accent); color: var(--tx); background: var(--accent-soft); }
+.review-step.is-done { color: var(--mint); }
+.review-item { display: flex; gap: 16px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.review-item-main { flex: 1; min-width: 240px; }
+.review-title { font-weight: 900; font-size: 15.5px; color: var(--tx); text-decoration: none; }
+.review-title:hover { color: var(--accent); }
+.review-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

@@ -48,15 +48,15 @@ function viewPath(view, noteId) { return `/v/${encodeURIComponent(view)}${noteId
 
 async function route() {
     const p = location.pathname;
-    if (p.startsWith('/stream') || p === '/timer' || p === '/settings') {
+    if (p.startsWith('/stream') || ['/timer', '/settings', '/tasks', '/review'].includes(p)) {
         await flushSave();
         app.classList.add('is-wide');
         $('widePane').hidden = false;
-        const which = p === '/settings' ? 'settings' : 'stream';
+        const which = p === '/settings' ? 'settings' : p === '/tasks' ? 'tasks' : p === '/review' ? 'review' : 'stream';
         const tab = p === '/timer' ? 'timer' : p.split('/')[2];
-        const mod = await import(which === 'settings' ? './settings.js' : './stream.js');
+        const mod = await import(`./${which}.js`);
         S.wide = which;
-        mod.render($('widePane'), { S, navigate, tab, refreshState });
+        mod.render($('widePane'), { S, navigate, tab, refreshState, refreshCounts });
         renderSidebar();
         return;
     }
@@ -77,8 +77,12 @@ async function route() {
 
 // ── Données ──
 async function refreshCounts() {
-    const r = await get('/api/notes/counts');
+    const [r, tasks] = await Promise.all([get('/api/notes/counts'), get('/api/tasks')]);
     S.counts = r.counts; S.tags = r.tags; S.containers = r.containers;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    S.taskCount = tasks.length;
+    S.taskUrgent = tasks.filter(t => t.due && t.due <= iso).length;
     renderSidebar();
     renderListHead();
 }
@@ -88,7 +92,7 @@ async function loadList() {
     S.list = await get('/api/notes?' + qs);
     renderList();
 }
-const refreshAll = debounce(async () => { await Promise.all([refreshCounts(), loadList()]); }, 250);
+const refreshAll = debounce(async () => { S.templates = null; await Promise.all([refreshCounts(), S.wide ? null : loadList()]); }, 250);
 
 async function refreshState() {
     S.server = await get('/api/state');
@@ -131,9 +135,20 @@ function renderSidebar() {
         h('span', { class: 'brand-logo', html: TOMATO }),
         h('div', {}, h('div', { class: 'brand-name' }, (S.server && S.server.settings.workspaceName) || 'Pomodoro'), h('div', { class: 'brand-machine' }, machine ? `sur ${machine}` : ''))
     ));
-    frag.push(h('button', { class: 'capture-btn', onclick: () => newNote() }, icon('plus'), 'Nouvelle note', h('kbd', {}, `${modKey} N`)));
+    frag.push(h('div', { class: 'capture-row' },
+        h('button', { class: 'capture-btn', onclick: () => newNote() }, icon('plus'), 'Nouvelle note', h('kbd', {}, `${modKey} N`)),
+        h('button', { class: 'capture-more', title: `Depuis un modèle (${modKey}⇧N)`, onclick: e => templateMenu(e.currentTarget) }, '🧩')));
 
     const scroll = h('div', { class: 'side-scroll' });
+    // Tableau de bord : tâches + revue hebdomadaire
+    const rv = (S.server && S.server.settings.review) || { lastAt: 0, everyDays: 7 };
+    const reviewDue = Date.now() - (rv.lastAt || 0) > (rv.everyDays || 7) * 86400000;
+    const top = h('div', { class: 'side-group', style: { marginTop: '4px' } });
+    top.appendChild(navItem({ label: 'Tâches', ico: '☑️', active: S.wide === 'tasks', onclick: () => navigate('/tasks'), count: S.taskCount || '',
+        extra: S.taskUrgent ? h('span', { class: 'pill accent', title: 'En retard ou pour aujourd’hui' }, `🔥 ${S.taskUrgent}`) : null }));
+    top.appendChild(navItem({ label: 'Revue hebdo', ico: '🔁', active: S.wide === 'review', onclick: () => navigate('/review'),
+        extra: reviewDue ? h('span', { class: 'pill gold' }, 'à faire') : null }));
+    scroll.appendChild(top);
     // IPARA
     const g = h('div', { class: 'side-group' }, h('div', { class: 'side-title' }, h('span', {}, 'IPARA')));
     g.appendChild(navItem({ label: 'Inbox', view: 'inbox', count: c.inbox, active: active === 'inbox', cls: 'is-inbox', letter: { l: 'I', color: '#fff', bg: 'var(--accent)' }, drop: { container: null, archived: false } }));
@@ -366,6 +381,34 @@ async function newNote({ body, container } = {}) {
     setTimeout(() => { if (S.editor) { S.editor.focus(false); S.editor.view.dispatch({ selection: { anchor: 2 } }); } }, 60);
 }
 
+// ── Modèles de notes (notes portant le tag #modèle) ──
+async function newFromTemplate(t) {
+    await flushSave();
+    const container = S.view.startsWith('container:') ? S.view.slice(10) : null;
+    const n = await post('/api/notes/from-template', { templateId: t.id, container });
+    const view = container ? S.view : 'inbox';
+    S.view = view;
+    navigate(viewPath(view, n.id));
+    refreshAll();
+    toast(`📝 Note créée depuis « ${t.title} »`, 'ok');
+}
+
+async function templateMenu(anchor) {
+    const list = await get('/api/templates');
+    const items = [{ label: 'Nouvelle note depuis un modèle' }];
+    if (!list.length) {
+        items.push({ icon: '✨', text: 'Créer les modèles de base', run: async () => {
+            const r = await post('/api/templates/seed');
+            toast(`${r.created} modèles créés dans la ressource « Modèles »`, 'ok');
+            refreshAll();
+        } });
+    } else {
+        for (const t of list) items.push({ icon: '🧩', text: t.title || 'Sans titre', run: () => newFromTemplate(t) });
+    }
+    items.push('-', { icon: 'ℹ️', text: 'Astuce : ajoute #modèle à une note pour en faire un modèle', run: () => {} });
+    menu(anchor, items);
+}
+
 async function moveNote(id, dest) {
     const patch = {};
     if ('container' in dest) patch.container = dest.container;
@@ -504,6 +547,8 @@ function commandPalette() {
     const actions = [
         { act: 'new', label: 'Nouvelle note', ico: '📝', hint: `${modKey} N` },
         { act: 'go', to: viewPath('inbox'), label: 'Aller à l’Inbox', ico: '📥' },
+        { act: 'go', to: '/tasks', label: 'Toutes mes tâches', ico: '☑️' },
+        { act: 'go', to: '/review', label: 'Revue hebdomadaire', ico: '🔁' },
         { act: 'go', to: '/stream', label: 'Ouvrir le stream', ico: '🎥' },
         { act: 'go', to: '/stream/timer', label: 'Minuteur pomodoro', ico: '🍅' },
         { act: 'go', to: '/settings', label: 'Réglages', ico: '⚙️' },
@@ -522,16 +567,20 @@ function commandPalette() {
             const acts = actions.filter(a => !f || a.label.toLowerCase().includes(f));
             const conts = S.containers.filter(c => f && c.name.toLowerCase().includes(f)).map(c => ({ act: 'go', to: viewPath(`container:${c.id}`), label: c.name, ico: c.icon || KIND[c.kind].ico, sub: KIND[c.kind].one + (c.archived ? ' · archivé' : '') }));
             const notes = f ? (await get('/api/notes?' + new URLSearchParams({ view: 'all', q }))).slice(0, 12).map(n => ({ act: 'note', id: n.id, label: n.title, ico: '📄', sub: n.excerpt })) : S.list.slice(0, 6).map(n => ({ act: 'note', id: n.id, label: n.title, ico: '📄', sub: ago(n.updatedAt) }));
+            if (!S.templates) S.templates = await get('/api/templates').catch(() => []);
+            const tpls = S.templates.filter(t => !f || `modèle ${t.title}`.toLowerCase().includes(f)).map(t => ({ act: 'template', t, label: `Nouvelle note : ${t.title}`, ico: '🧩' }));
             const out = [];
             if (notes.length) out.push({ section: f ? 'Notes' : 'Récentes' }, ...notes);
             if (conts.length) out.push({ section: 'IPARA' }, ...conts);
             if (acts.length) out.push({ section: 'Actions' }, ...acts);
+            if (tpls.length && f) out.push({ section: 'Modèles' }, ...tpls);
             if (f) out.push({ act: 'create', label: `Créer la note « ${q.trim()} »`, ico: '➕' });
             return out;
         },
         render: o => [h('span', { class: 'mi-ico' }, o.ico), h('div', {}, o.label, o.sub ? h('small', {}, o.sub) : null), o.hint ? h('span', { class: 'mi-hint' }, o.hint) : null],
         pick: (o, q) => {
             if (o.act === 'new') newNote();
+            else if (o.act === 'template') newFromTemplate(o.t);
             else if (o.act === 'create') newNote({ body: `# ${q.trim()}\n\n` });
             else if (o.act === 'go') navigate(o.to);
             else if (o.act === 'note') navigate(viewPath(S.view === 'trash' ? 'all' : S.view, o.id));
@@ -857,6 +906,7 @@ document.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'k' && !e.shiftKey) { e.preventDefault(); commandPalette(); }
     else if (k === 'n' && !e.shiftKey) { e.preventDefault(); newNote(); }
+    else if (k === 'n' && e.shiftKey) { e.preventDefault(); templateMenu(document.querySelector('.capture-more') || { x: innerWidth / 2, y: 80, getBoundingClientRect: () => ({ left: innerWidth / 2, right: innerWidth / 2, top: 80, bottom: 80 }) }); }
     else if (k === 'p' && e.shiftKey) { e.preventDefault(); if (S.note) togglePreview(); }
     else if (k === 'm' && e.shiftKey) { e.preventDefault(); if (S.note) fileNote(S.note.meta || S.note); }
     else if (k === 'f' && e.shiftKey) { e.preventDefault(); app.classList.toggle('focus-mode'); }

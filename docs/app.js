@@ -1,6 +1,6 @@
 // Pomodoro mobile — notes IPARA partout, même hors ligne.
 import { Store } from './store.js';
-import { titleOf, tagsOf, tasksOf, excerptOf } from './md.js';
+import { titleOf, tagsOf, tasksOf, excerptOf, taskLinesOf, toggleTaskLine, applyTemplate } from './md.js';
 import { createEditor, renderMarkdown } from './vendor/editor.bundle.js';
 
 const store = new Store();
@@ -50,6 +50,7 @@ function meta(n) {
     return m;
 }
 const cont = id => id ? store.para.get(id) || null : null;
+const isTemplate = n => meta(n).tags.some(t => t === 'modèle' || t === 'modele');
 const isArchived = n => !!(n.archived || (cont(n.container) && cont(n.container).archived));
 const startOfDay = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
@@ -59,12 +60,12 @@ function notesFor(view, q = '') {
     if (k === 'trash') list = list.filter(n => n.trashed);
     else {
         list = list.filter(n => !n.trashed);
-        if (k === 'inbox') list = list.filter(n => !n.container && !n.archived);
+        if (k === 'inbox') list = list.filter(n => !n.container && !n.archived && !isTemplate(n));
         else if (k === 'archive') list = list.filter(isArchived);
         else if (k === 'container') list = list.filter(n => n.container === arg);
         else if (k === 'kind') list = list.filter(n => cont(n.container) && cont(n.container).kind === arg && !isArchived(n));
         else if (k === 'tag') list = list.filter(n => meta(n).tags.some(t => t === arg || t.startsWith(arg + '/')));
-        else if (k === 'todo') list = list.filter(n => meta(n).tasks.open > 0 && !isArchived(n));
+        else if (k === 'todo') list = list.filter(n => meta(n).tasks.open > 0 && !isArchived(n) && !isTemplate(n));
         else if (k === 'today') list = list.filter(n => (n.updatedAt || 0) >= startOfDay());
         else list = list.filter(n => !isArchived(n));
     }
@@ -102,6 +103,7 @@ async function route() {
     let m;
     if ((m = h.match(/^#\/n\/([^/]+)/))) return renderNote(m[1]);
     if ((m = h.match(/^#\/v\/(.+)$/))) return renderList(decodeURIComponent(m[1]));
+    if (h.startsWith('#/tasks')) return renderTasks();
     return renderHome();
 }
 
@@ -124,6 +126,7 @@ function renderHome() {
     destroyEditor();
     const all = store.list();
     const count = v => notesFor(v).length;
+    const urgent = openTasks().filter(t => t.due && t.due <= todayIso()).length;
     const rows = [];
     rows.push(`<div class="group"><button class="row" data-go="#/v/inbox"><span class="ico" style="background:var(--accent);color:#fff">I</span><span class="lbl">Inbox</span><span class="cnt ${count('inbox') ? 'hot' : ''}">${count('inbox') || ''}</span><span class="chev">›</span></button>`);
     for (const [k, K] of Object.entries(KIND)) {
@@ -148,6 +151,7 @@ function renderHome() {
             <label class="search">${I.search}<input id="q" type="search" placeholder="Rechercher partout" enterkeyhint="search"></label>
             <div id="results"></div>
             <div id="homeGroups">
+                <div class="group" style="margin-top:14px"><button class="row" data-go="#/tasks"><span class="ico">☑️</span><span class="lbl">Tâches</span><span class="cnt ${urgent ? 'hot' : ''}">${openTasks().length || ''}</span><span class="chev">›</span></button><button class="row" id="tplBtn"><span class="ico">🧩</span><span class="lbl">Nouvelle note depuis un modèle</span><span class="chev">›</span></button></div>
                 <div class="group-title">IPARA</div>${rows.join('')}
                 <div class="group-title">Filtres</div><div class="group">${filters.map(([v, ico, l]) => `<button class="row" data-go="#/v/${v}"><span class="ico">${ico}</span><span class="lbl">${l}</span><span class="cnt">${count(v) || ''}</span><span class="chev">›</span></button>`).join('')}</div>
                 ${tagCounts.size ? `<div class="group-title">Tags</div><div class="group">${[...tagCounts].sort((a, b) => a[0].localeCompare(b[0], 'fr')).map(([t, n]) => `<button class="row" data-go="#/v/${encodeURIComponent('tag:' + t)}"><span class="ico" style="color:var(--ed-tag)">#</span><span class="lbl">${esc(t)}</span><span class="cnt">${n}</span></button>`).join('')}</div>` : ''}
@@ -158,6 +162,7 @@ function renderHome() {
     </div>`;
     wireGo();
     app.querySelector('#fab').onclick = () => newNote();
+    app.querySelector('#tplBtn').onclick = () => templateSheet();
     app.querySelector('#syncBtn').onclick = () => { toast('Synchronisation…'); store.sync(); };
     app.querySelector('#settingsBtn').onclick = settingsSheet;
     const q = app.querySelector('#q');
@@ -211,6 +216,73 @@ async function newNote({ container = null, body = '# ' } = {}) {
     const n = await store.createNote({ body, container });
     go(`#/n/${n.id}`);
     setTimeout(() => { if (editor) { editor.view.focus(); editor.view.dispatch({ selection: { anchor: body.startsWith('# \n') ? 2 : body.length } }); } }, 80);
+}
+
+// ── Tâches de toutes les notes ──
+const pad2 = n => String(n).padStart(2, '0');
+const isoOf = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const todayIso = () => isoOf(new Date());
+function openTasks() {
+    const out = [];
+    for (const n of store.list()) {
+        if (n.trashed || isArchived(n) || isTemplate(n) || !meta(n).tasks.open) continue;
+        for (const t of taskLinesOf(n.body)) if (!t.checked && t.text) out.push({ ...t, note: n });
+    }
+    return out;
+}
+function renderTasks() {
+    destroyEditor();
+    const list = openTasks();
+    const today = todayIso();
+    const w = new Date(); w.setDate(w.getDate() + 7);
+    const week = isoOf(w);
+    const groups = [
+        ['🔥 En retard', list.filter(t => t.due && t.due < today)],
+        ['☀️ Aujourd’hui', list.filter(t => t.due === today)],
+        ['🗓️ 7 prochains jours', list.filter(t => t.due && t.due > today && t.due <= week)],
+        ['🔭 Plus tard', list.filter(t => t.due && t.due > week)]
+    ];
+    // Sans date : regroupées par note (liste de courses, projet…)
+    const byNote = new Map();
+    for (const t of list.filter(t => !t.due)) { if (!byNote.has(t.note.id)) byNote.set(t.note.id, []); byNote.get(t.note.id).push(t); }
+    for (const [, ts] of [...byNote].sort((a, b) => (b[1][0].note.updatedAt || 0) - (a[1][0].note.updatedAt || 0))) groups.push([`📄 ${meta(ts[0].note).title}`, ts, ts[0].note.id]);
+    const flat = [];
+    const rowHtml = t => { flat.push(t); return `<div class="row task-row" data-i="${flat.length - 1}"><span class="cm-checkbox"></span><span class="lbl" style="white-space:normal">${esc(t.text)}${t.due ? ` <span class="cnt">📅 ${t.due.slice(5).split('-').reverse().join('/')}</span>` : ''}</span></div>`; };
+    const html = groups.filter(([, l]) => l.length).map(([title, l, noteId]) =>
+        `<div class="group-title">${noteId ? `<a data-go="#/n/${noteId}" style="color:inherit;text-decoration:none">${esc(title)} ›</a>` : esc(title)}</div><div class="group">${l.map(rowHtml).join('')}</div>`).join('');
+    app.innerHTML = `
+    <div class="screen">
+        <div class="topbar"><button class="tb-btn" id="back">${I.back}</button><h1>☑️ Tâches</h1></div>
+        <div class="scroll">${html || '<div class="empty"><b>🎉</b>Aucune tâche en attente.</div>'}
+            <p class="list-head" style="text-align:center">Astuce : ajoute 📅 2026-10-02 au bout d’une case pour lui donner une échéance.</p></div>
+    </div>`;
+    wireGo();
+    app.querySelector('#back').onclick = () => go('#/');
+    app.querySelectorAll('.task-row').forEach(row => row.onclick = async () => {
+        const t = flat[Number(row.dataset.i)];
+        const body = toggleTaskLine(t.note.body, t.line, t.raw, true);
+        if (body === null) return toast('Case introuvable');
+        row.querySelector('.cm-checkbox').classList.add('is-checked');
+        row.style.opacity = '.45';
+        t.note.body = body;
+        await store.saveNote(t.note);
+        setTimeout(() => { if ((location.hash || '').startsWith('#/tasks')) renderTasks(); }, 450);
+    });
+}
+
+// ── Modèles (notes portant le tag #modèle) ──
+function templateSheet() {
+    const tpls = store.list().filter(n => !n.trashed && isTemplate(n)).sort((a, b) => meta(a).title.localeCompare(meta(b).title, 'fr'));
+    const label = t => meta(t).title.split('{{')[0].replace(/[s:—-]+$/, '') || 'Sans titre';
+    sheet(`<h3>Nouvelle note depuis un modèle</h3>
+        ${tpls.length ? tpls.map(t => `<button class="row" data-id="${t.id}"><span class="ico">🧩</span><span class="lbl">${esc(label(t))}</span></button>`).join('') : '<div class="list-head">Aucun modèle pour l’instant : ajoute le tag #modèle à une note.</div>'}`, (bg, close) => {
+        bg.querySelectorAll('[data-id]').forEach(b => b.onclick = async () => {
+            const t = store.get(b.dataset.id);
+            close();
+            const n = await store.createNote({ body: applyTemplate(t.body), container: null });
+            go(`#/n/${n.id}`);
+        });
+    });
 }
 
 // ── Note ──
