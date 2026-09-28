@@ -25,6 +25,10 @@ const VERSION = require('./package.json').version;
 const store = new Store(DATA);
 const sync = new GitSync({ store, dir: DATA, getConfig: config.get });
 const notes = new Notes({ store });
+const { Databases } = require('./lib/databases');
+const { Planner } = require('./lib/planner');
+const dbs = new Databases({ store, notes });
+let planner = null;
 let bot = null;
 
 const engine = new StreamEngine({
@@ -286,6 +290,25 @@ route('POST', '/api/files', async ({ req, query }) => {
     return { url: `/files/${file}` };
 });
 
+// Bases de données
+route('GET', '/api/dbs', () => dbs.list());
+route('POST', '/api/dbs', async ({ req }) => dbs.save(await readJson(req)));
+route('POST', '/api/dbs/seed-recipes', () => { const r = dbs.seedRecipes(); return { id: r.db.id, created: r.created }; });
+route('GET', '/api/dbs/:id', ({ params }) => { const d = dbs.get(params.id); if (!d) throw Object.assign(new Error('base introuvable'), { status: 404 }); return d; });
+route('PUT', '/api/dbs/:id', async ({ req, params }) => dbs.save({ ...(await readJson(req)), id: params.id }));
+route('DELETE', '/api/dbs/:id', ({ params }) => ({ ok: dbs.remove(params.id) }));
+route('GET', '/api/dbs/:id/rows', ({ params }) => dbs.rows(params.id));
+route('POST', '/api/dbs/:id/rows', async ({ req, params }) => { const n = dbs.createRow(params.id, await readJson(req)); return { ...n, meta: notes.meta(n) }; });
+route('PUT', '/api/rows/:id/props', async ({ req, params }) => { const n = dbs.setProps(params.id, await readJson(req)); if (!n) throw Object.assign(new Error('fiche introuvable'), { status: 404 }); return n.props; });
+
+// Calendrier, repas, liste de courses
+route('GET', '/api/calendar', ({ query }) => planner.between(query.get('from') || '0000-00-00', query.get('to') || '9999-12-31'));
+route('POST', '/api/calendar', async ({ req }) => planner.save(await readJson(req)));
+route('PUT', '/api/calendar/:id', async ({ req, params }) => planner.save({ ...(await readJson(req)), id: params.id }));
+route('DELETE', '/api/calendar/:id', ({ params }) => ({ ok: planner.remove(params.id) }));
+route('POST', '/api/meals/plan', async ({ req }) => planner.planMeal(await readJson(req)));
+route('POST', '/api/shopping/refresh', () => { const n = planner.refreshShopping(); return { id: n.id }; });
+
 // Stream
 route('GET', '/api/stream', () => engine.snapshot());
 route('GET', '/api/stream/users', () => engine.store.list('users').filter(u => !u.login.startsWith('_')).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)));
@@ -426,6 +449,7 @@ async function main() {
     store.init();
     if (notes.seed()) console.log('🌱 Espace de notes d’exemple créé');
     notes.purgeTrash();
+    planner = new Planner({ store, notes, dbs, getSettings: () => engine.settings() });
     // L'app mobile a besoin de savoir quelle liste est celle du streamer.
     const chan = engine.streamerLogin();
     if (chan && engine.settings().streamerLogin !== chan) engine.saveSettings({ streamerLogin: chan });
