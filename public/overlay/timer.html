@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>Pomodoro — overlay minuteur</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/theme.css">
+    <style>
+        html, body { margin: 0; background: transparent; overflow: hidden; }
+        body { font-family: var(--font); color: var(--tx); -webkit-font-smoothing: antialiased; }
+        :root { --col: #F0653D; }
+        .wrap { transition: opacity .6s ease, transform .6s ease; }
+        .wrap.is-idle-hidden { opacity: 0; transform: scale(.95); }
+
+        /* Anneau */
+        .ring-card {
+            position: relative; width: 380px; height: 380px; margin: 20px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 50% 35%, rgba(31, 34, 48, .96), rgba(14, 16, 23, .96) 70%);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .08), 0 0 0 1px rgba(255, 255, 255, .06);
+        }
+        .ring-card svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+        .ring-card .arc { transition: stroke-dashoffset .95s linear, stroke .6s; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--col) 60%, transparent)); }
+        .center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .phase { font-size: 19px; font-weight: 900; letter-spacing: .28em; text-transform: uppercase; color: var(--col); padding-left: .28em; transition: color .6s; }
+        .time { font-size: 92px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -2px; margin: 6px 0 8px; }
+        .label { font-size: 17px; font-weight: 800; color: var(--tx-2); max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 23px; }
+        .dots { display: flex; gap: 9px; margin-top: 14px; }
+        .dots i { width: 12px; height: 12px; border-radius: 50%; background: rgba(255, 255, 255, .12); transition: background .4s, transform .4s; }
+        .dots i.on { background: #F0653D; }
+        .dots i.cur { background: transparent; box-shadow: inset 0 0 0 2px var(--col); transform: scale(1.1); }
+        .paused .time { opacity: .5; animation: blink 1.6s ease-in-out infinite; }
+        @keyframes blink { 50% { opacity: .25; } }
+        .idle .time { color: var(--mu); }
+
+        /* Bandeau (?style=bar) */
+        .bar-card {
+            display: none; width: 860px; margin: 20px; padding: 18px 24px; box-sizing: border-box;
+            border-radius: 22px; background: rgba(17, 19, 27, .92);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px rgba(255, 255, 255, .06);
+            align-items: center; gap: 20px;
+        }
+        body.bar .ring-card { display: none; }
+        body.bar .bar-card { display: flex; }
+        .bar-card .phase-chip { padding: 8px 16px; border-radius: 30px; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; font-size: 16px; color: #0B0D14; background: var(--col); flex-shrink: 0; transition: background .6s; }
+        .bar-card .mid { flex: 1; min-width: 0; }
+        .bar-card .blabel { font-weight: 900; font-size: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bar-card .track { height: 10px; border-radius: 10px; background: rgba(255, 255, 255, .08); margin-top: 10px; overflow: hidden; }
+        .bar-card .track i { display: block; height: 100%; border-radius: 10px; background: var(--col); transition: width .95s linear, background .6s; }
+        .bar-card .btime { font-size: 48px; font-weight: 900; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+        .bar-card .bcyc { font-size: 15px; font-weight: 800; color: var(--mu); flex-shrink: 0; text-align: center; }
+        .bar-card .bcyc b { display: block; font-size: 24px; color: var(--tx); }
+    </style>
+</head>
+<body>
+    <div class="wrap" id="wrap">
+        <div class="ring-card" id="ring">
+            <svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="88" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="10"/><circle class="arc" id="arc" cx="100" cy="100" r="88" fill="none" stroke="var(--col)" stroke-width="10" stroke-linecap="round" stroke-dasharray="552.9" stroke-dashoffset="552.9"/></svg>
+            <div class="center">
+                <div class="phase" id="phase"></div>
+                <div class="time" id="time">--:--</div>
+                <div class="label" id="label"></div>
+                <div class="dots" id="dots"></div>
+            </div>
+        </div>
+        <div class="bar-card" id="barCard">
+            <div class="phase-chip" id="bPhase"></div>
+            <div class="mid"><div class="blabel" id="bLabel"></div><div class="track"><i id="bFill"></i></div></div>
+            <div class="btime" id="bTime">--:--</div>
+            <div class="bcyc"><b id="bCyc">0/0</b>pomodoros</div>
+        </div>
+    </div>
+    <script type="module">
+        import { connect, params, fmt, remaining, chime, isPreview } from '/overlay/overlay.js';
+        const $ = id => document.getElementById(id);
+        if (params.get('style') === 'bar') document.body.classList.add('bar');
+        const hideIdle = params.get('hideIdle') === '1';
+        const soundOn = params.get('sound') !== '0' && !isPreview;
+        let snap = null, lastPhase = null, lastKey = null;
+        const C = 2 * Math.PI * 88;
+
+        function draw() {
+            if (!snap) return;
+            let t = snap.timer;
+            const L = snap.timerSettings;
+            if (!t && isPreview) t = { phase: 'work', endsAt: Date.now() + 18 * 60000 + 42000, phaseDuration: 25 * 60000, paused: false, completed: 1, goal: 4, label: 'Aperçu du minuteur', work: 25, brk: 5 };
+            const root = document.documentElement;
+            const ring = $('ring');
+            ring.classList.toggle('paused', !!(t && t.paused));
+            ring.classList.toggle('idle', !t);
+            $('wrap').classList.toggle('is-idle-hidden', !t && hideIdle);
+            if (!t) {
+                root.style.setProperty('--col', '#A6A29B');
+                $('phase').textContent = L.idleLabel; $('time').textContent = '--:--'; $('label').textContent = ''; $('dots').innerHTML = '';
+                $('arc').style.strokeDashoffset = C;
+                $('bPhase').textContent = L.idleLabel; $('bTime').textContent = '--:--'; $('bLabel').textContent = snap.overlay.title; $('bFill').style.width = '0%'; $('bCyc').textContent = '–';
+                lastPhase = null;
+                return;
+            }
+            const col = t.phase === 'break' ? '#6FDA9A' : t.phase === 'done' ? '#E8B84D' : (snap.overlay.accent || '#F0653D');
+            root.style.setProperty('--col', col);
+            const rem = remaining(t);
+            const frac = t.phase === 'done' ? 1 : Math.max(0, Math.min(1, 1 - rem / (t.phaseDuration || 1)));
+            const phaseTxt = t.paused ? 'Pause ⏸' : t.phase === 'work' ? L.focusLabel : t.phase === 'break' ? L.breakLabel : L.doneLabel;
+            $('phase').textContent = phaseTxt;
+            $('time').textContent = fmt(rem);
+            $('label').textContent = t.label || '';
+            $('arc').style.strokeDashoffset = String(C * (1 - frac));
+            const key = `${t.goal}-${t.completed}-${t.phase}`;
+            if (key !== lastKey) {
+                lastKey = key;
+                $('dots').innerHTML = Array.from({ length: Math.min(t.goal, 12) }, (_, i) => `<i class="${i < t.completed ? 'on' : (i === t.completed && t.phase === 'work' ? 'cur' : '')}"></i>`).join('');
+            }
+            $('bPhase').textContent = phaseTxt;
+            $('bLabel').textContent = t.label || snap.overlay.title;
+            $('bTime').textContent = fmt(rem);
+            $('bFill').style.width = `${frac * 100}%`;
+            $('bCyc').textContent = `${t.completed}/${t.goal}`;
+            if (lastPhase && lastPhase !== t.phase && soundOn && L.sound) chime(t.phase);
+            lastPhase = t.phase;
+        }
+        setInterval(draw, 250);
+        connect(s => { snap = s; draw(); });
+    </script>
+</body>
+</html>

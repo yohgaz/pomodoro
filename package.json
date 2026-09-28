@@ -1,0 +1,33 @@
+{
+  "name": "pomodoro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Liste de tâches de stream (overlay OBS + bot Twitch façon Super Sweet) et espace de travail auto-hébergé façon Notion, synchronisé entre machines via git",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node scripts/test-commands.js",
+    "build:editor": "esbuild editor-src/editor.js --bundle --format=esm --minify --target=es2020,safari15 --outfile=public/vendor/editor.bundle.js && esbuild editor-src/editor.js --bundle --format=esm --minify --target=es2020,safari15 --outfile=docs/vendor/editor.bundle.js",
+    "build:mobile": "node scripts/build-mobile.js",
+    "build": "npm run build:editor && npm run build:mobile"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "tmi.js": "1.8.5"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@lezer/highlight": "^1.2.5",
+    "@lezer/markdown": "^1.7.2",
+    "esbuild": "^0.28.2",
+    "marked": "^18.0.14"
+  }
+}

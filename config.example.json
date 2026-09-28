@@ -1,0 +1,17 @@
+{
+  "machineName": "MacBook",
+  "port": 3210,
+  "host": "127.0.0.1",
+  "sync": {
+    "enabled": true,
+    "remote": "https://github.com/yohgaz/pomodoro-data.git",
+    "intervalSeconds": 30
+  },
+  "twitch": {
+    "channel": "emilae_tv",
+    "botUsername": "emilaebot",
+    "botToken": "oauth:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "bot": { "mode": "auto" },
+  "accessCode": ""
+}

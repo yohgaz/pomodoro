@@ -1,0 +1,78 @@
+/* Pomodoro — jetons de design partagés (espace de notes, overlays, mobile).
+   Palette reprise du pack de stream Emilae : nuit bleutée, orange braise,
+   menthe, or. */
+:root {
+    --bg: #0B0D14;
+    --bg-2: #10121A;
+    --c1: #14161F;
+    --c2: #191C27;
+    --c3: #1F2230;
+    --c4: #272B3B;
+    --line: rgba(255, 255, 255, .07);
+    --line-strong: rgba(255, 255, 255, .13);
+    --accent: #F0653D;
+    --accent-soft: rgba(240, 101, 61, .14);
+    --accent-strong: #FF7A52;
+    --mint: #6FDA9A;
+    --mint-soft: rgba(111, 218, 154, .14);
+    --gold: #E8B84D;
+    --gold-soft: rgba(232, 184, 77, .14);
+    --sky: #7AB8FF;
+    --lilac: #C792EA;
+    --rose: #FF8FB1;
+    --tx: #F4F2ED;
+    --tx-2: #D6D3CC;
+    --mu: #A6A29B;
+    --mu-2: #726F6A;
+    --danger: #FF6B6B;
+    --shadow: 0 18px 50px rgba(0, 0, 0, .45);
+    --shadow-sm: 0 4px 14px rgba(0, 0, 0, .3);
+    --radius: 14px;
+    --radius-sm: 9px;
+    --font: 'Nunito', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+
+    /* éditeur */
+    --ed-text: #E9E6DF;
+    --ed-muted: #6E6B66;
+    --ed-link: #F0653D;
+    --ed-quote: #BDB8AF;
+    --ed-code-bg: rgba(255, 255, 255, .05);
+    --ed-hl: rgba(232, 184, 77, .28);
+    --ed-tag-bg: rgba(240, 101, 61, .13);
+    --ed-tag: #FF9774;
+    color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+    --bg: #F6F3EE;
+    --bg-2: #EFEBE4;
+    --c1: #FBF9F6;
+    --c2: #FFFFFF;
+    --c3: #F1EDE6;
+    --c4: #E6E1D8;
+    --line: rgba(30, 25, 20, .08);
+    --line-strong: rgba(30, 25, 20, .15);
+    --accent: #E0552D;
+    --accent-soft: rgba(224, 85, 45, .11);
+    --accent-strong: #C9461F;
+    --mint: #2E9E62;
+    --mint-soft: rgba(46, 158, 98, .12);
+    --gold: #B98512;
+    --gold-soft: rgba(185, 133, 18, .12);
+    --tx: #24211D;
+    --tx-2: #3D3934;
+    --mu: #7A746B;
+    --mu-2: #A39D93;
+    --shadow: 0 18px 50px rgba(60, 40, 20, .16);
+    --shadow-sm: 0 4px 14px rgba(60, 40, 20, .1);
+    --ed-text: #2A2622;
+    --ed-muted: #B0A99E;
+    --ed-link: #D2502A;
+    --ed-quote: #6B655C;
+    --ed-code-bg: rgba(40, 30, 20, .05);
+    --ed-hl: rgba(232, 184, 77, .38);
+    --ed-tag-bg: rgba(224, 85, 45, .1);
+    --ed-tag: #C9461F;
+    color-scheme: light;
+}

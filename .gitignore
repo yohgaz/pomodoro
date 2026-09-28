@@ -1,0 +1,10 @@
+node_modules/
+# Réglages propres à chaque machine (jeton du bot, dépôt de données…)
+config.json
+# Données : dépôt git séparé (pomodoro-data), synchronisé à part
+data/
+logs/
+*.log
+.DS_Store
+.claude/
+export/

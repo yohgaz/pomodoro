@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pomodoro — accès</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/theme.css">
+    <style>
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--tx); font-family: var(--font); }
+        form { background: var(--c2); border: 1px solid var(--line-strong); border-radius: 18px; padding: 28px; width: min(360px, 90vw); text-align: center; }
+        img { width: 56px; }
+        h1 { font-size: 20px; margin: 10px 0 6px; }
+        p { color: var(--mu); font-size: 14px; margin: 0 0 18px; }
+        input { width: 100%; box-sizing: border-box; padding: 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--c1); color: var(--tx); font-size: 18px; text-align: center; letter-spacing: 3px; }
+        button { margin-top: 12px; width: 100%; padding: 12px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 800; font-size: 15px; }
+        .err { color: var(--danger); min-height: 20px; margin-top: 10px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <form id="f">
+        <img src="/icon.svg" alt="">
+        <h1>Pomodoro</h1>
+        <p>Entre le code d’accès défini dans les réglages.</p>
+        <input id="code" type="password" autocomplete="current-password" inputmode="numeric" autofocus>
+        <button>Entrer</button>
+        <div class="err" id="err"></div>
+    </form>
+    <script>
+        document.getElementById('f').addEventListener('submit', async e => {
+            e.preventDefault();
+            const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: document.getElementById('code').value }) });
+            if (r.ok) location.href = '/'; else document.getElementById('err').textContent = 'Code incorrect';
+        });
+    </script>
+</body>
+</html>
