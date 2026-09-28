@@ -328,7 +328,9 @@ function drawOverlay() {
         h('div', { class: 'code-line' }, h('span', {}, url), h('button', { class: 'btn small', onclick: () => { navigator.clipboard.writeText(url); toast('Adresse copiée'); } }, icon('copy'), 'Copier')));
     body.replaceChildren(h('div', { class: 'grid-2', style: { alignItems: 'start' } },
         h('div', { class: 'stack' },
-            h('div', { class: 'card' }, h('h3', {}, '🔗 Adresses pour OBS'),
+            sceneCard(base, s, urlLine),
+            socialsCard(s),
+            h('div', { class: 'card' }, h('h3', {}, '🔗 Sources séparées (si tu préfères)'),
                 urlLine('Liste de tâches', `${base}/overlay/tasks`, `largeur ${o.width + 40} × hauteur ${o.maxHeight + 140}`),
                 urlLine('Liste de tâches en 4K', `${base}/overlay/tasks?scale=2`, `largeur ${(o.width + 40) * 2} × hauteur ${(o.maxHeight + 140) * 2}`),
                 urlLine('Minuteur', `${base}/overlay/timer`, '420 × 420 (ou ?style=bar : 900 × 120)'),
@@ -365,6 +367,69 @@ function drawOverlay() {
             h('div', { class: 'card' }, frameBox(timerFrame, 420, 420, 0.8))
         )
     ));
+}
+
+// ── Scène tout-en-un ──
+function sceneCard(base, s, urlLine) {
+    const frame = h('iframe', { src: '/overlay/scene?edit=1', title: 'Disposition de la scène' });
+    const box = h('div', { class: 'preview-frame', style: { height: '0', paddingTop: '56.25%' } }, frame);
+    frame.style.width = '100%'; frame.style.height = '100%';
+    const sc = { ...s.scene };
+    const save = debounce(async () => { V.state.settings = await put('/api/settings', { scene: sc }); }, 400);
+    const num = (label, key, min, max) => {
+        const i = h('input', { type: 'number', value: sc[key], min, max });
+        i.addEventListener('input', () => { sc[key] = Number(i.value); save(); });
+        return h('label', { class: 'field' }, h('span', {}, label), i);
+    };
+    return h('div', { class: 'card' }, h('h3', {}, '🎬 Scène tout-en-un', h('small', {}, 'recommandé : une seule source')),
+        h('p', { class: 'help', style: { marginTop: 0 } }, 'Tâches du chat, tes tâches, commandes, minuteur et réseaux sociaux dans une seule source navigateur. Taille de la source : celle de ton canevas (1920 × 1080 ou 3840 × 2160), la scène s’adapte toute seule.'),
+        urlLine('Scène', `${base}/overlay/scene`, 'taille du canevas'),
+        h('div', { class: 'help', style: { margin: '12px 0 6px' } }, h('b', {}, 'Disposition'), ' — ↖ ↗ ↙ ↘ range un panneau dans un coin (empilé), ✥ le déplace librement. OBS se met à jour en direct.'),
+        box,
+        h('div', { class: 'row', style: { marginTop: '10px', flexWrap: 'wrap' } },
+            h('button', { class: 'btn small', onclick: () => window.open('/overlay/scene?edit=1', 'pomodoro-layout', 'width=1280,height=760') }, 'Ouvrir en grand'),
+            h('button', { class: 'btn small ghost', onclick: async () => {
+                if (!await confirmBox('Disposition par défaut ?', 'Tâches du chat et les tiennes en haut à gauche, commandes en bas à gauche, minuteur en haut à droite, réseaux en bas à droite.', { ok: 'Rétablir' })) return;
+                V.state.settings = await put('/api/settings', { scene: { layout: DEFAULT_LAYOUT } });
+                frame.contentWindow.location.reload();
+            } }, 'Disposition par défaut')),
+        h('div', { class: 'row', style: { marginTop: '10px' } }, num('Rotation des viewers (s)', 'chatRotateSeconds', 5, 300), num('Tes tâches faites affichées', 'mineDone', 0, 10), num('Marge (px)', 'margin', 0, 200))
+    );
+}
+const DEFAULT_LAYOUT = {
+    chat: { zone: 'tl', order: 0, width: 430 }, mine: { zone: 'tl', order: 1, width: 430 },
+    commands: { zone: 'bl', order: 0, width: 430 }, timer: { zone: 'tr', order: 0, width: 280 }, socials: { zone: 'br', order: 0, width: 380 }
+};
+
+function socialsCard(s) {
+    const sc = s.scene;
+    let list = (sc.socials || []).map(x => ({ ...x }));
+    const PLATFORMS = [['twitch', 'Twitch'], ['youtube', 'YouTube'], ['bluesky', 'Bluesky'], ['discord', 'Discord'], ['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['x', 'X'], ['web', 'Site web']];
+    const save = debounce(async () => { V.state.settings = await put('/api/settings', { scene: { socials: list } }); }, 500);
+    const rows = h('div', {});
+    const draw = () => {
+        rows.replaceChildren(...list.map((it, i) => {
+            const sel = h('select', { class: 'input', style: { width: '130px' } }, ...PLATFORMS.map(([k, l]) => h('option', { value: k, selected: it.platform === k }, l)));
+            sel.addEventListener('change', () => { it.platform = sel.value; const p = PLATFORMS.find(x => x[0] === sel.value); if (p && (!it.label || PLATFORMS.some(x => x[1] === it.label))) it.label = p[1]; draw(); save(); });
+            const handle = h('input', { class: 'input', value: it.handle || '', placeholder: '@pseudo' });
+            handle.addEventListener('input', () => { it.handle = handle.value; save(); });
+            return h('div', { class: 'add-row', style: { marginTop: '6px' } }, sel, handle,
+                h('button', { class: 'btn small ghost', title: 'Monter', onclick: () => { if (i > 0) { [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); save(); } } }, '▲'),
+                h('button', { class: 'btn small ghost danger', title: 'Retirer', onclick: () => { list.splice(i, 1); draw(); save(); } }, '✕'));
+        }));
+    };
+    draw();
+    const cyc = h('input', { type: 'number', value: sc.socialsCycleMinutes, min: 1, max: 60 });
+    cyc.addEventListener('input', debounce(async () => { V.state.settings = await put('/api/settings', { scene: { socialsCycleMinutes: Number(cyc.value) } }); }, 400));
+    const show = h('input', { type: 'number', value: sc.socialsShowSeconds, min: 3, max: 120 });
+    show.addEventListener('input', debounce(async () => { V.state.settings = await put('/api/settings', { scene: { socialsShowSeconds: Number(show.value) } }); }, 400));
+    return h('div', { class: 'card' }, h('h3', {}, '🌐 Réseaux sociaux'),
+        h('p', { class: 'help', style: { marginTop: 0 } }, 'Même roulement que ton pack de stream : le cycle est découpé entre les réseaux, chacun s’affiche à son tour, calé sur l’heure réelle (donc synchronisé avec tes autres scènes).'),
+        rows,
+        h('button', { class: 'btn small', style: { marginTop: '8px' }, onclick: () => { list.push({ platform: 'web', label: 'Site web', handle: '' }); draw(); } }, '+ Ajouter un réseau'),
+        h('div', { class: 'row', style: { marginTop: '10px' } },
+            h('label', { class: 'field' }, h('span', {}, 'Cycle complet (min)'), cyc),
+            h('label', { class: 'field' }, h('span', {}, 'Durée d’affichage (s)'), show)));
 }
 
 // ── Commandes ──

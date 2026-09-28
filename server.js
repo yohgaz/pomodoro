@@ -374,7 +374,7 @@ async function handle(req, res) {
         const f = safeJoin(path.join(DATA, 'files'), p.slice(7));
         return f ? serveFile(res, f, { cache: true }) : send(res, 400, 'Chemin invalide');
     }
-    if (['/overlay/tasks', '/overlay/timer', '/overlay/commands'].includes(p)) return serveFile(res, path.join(PUBLIC, 'overlay', p.slice(9) + '.html'));
+    if (['/overlay/tasks', '/overlay/timer', '/overlay/commands', '/overlay/scene'].includes(p)) return serveFile(res, path.join(PUBLIC, 'overlay', p.slice(9) + '.html'));
     // Panneau de contrôle à ancrer dans OBS (Docks → Custom Browser Docks).
     if (p === '/dock') return serveFile(res, path.join(PUBLIC, 'dock', 'index.html'));
     if (p === '/' || p === '/index.html' || p.startsWith('/n/') || p.startsWith('/v/') || p.startsWith('/stream') || ['/timer', '/settings', '/tasks', '/review'].includes(p)) {

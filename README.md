@@ -108,6 +108,22 @@ L'app fonctionne hors ligne : les modifications (cocher la liste de courses au m
 
 ## 4. Overlays OBS
 
+### Recommandé : une seule source pour tout
+
+Ajoute **une seule Source navigateur** `http://localhost:3210/overlay/scene`, à la taille de ton canevas (1920 × 1080 ou 3840 × 2160). La scène s'adapte toute seule et contient cinq panneaux :
+
+| Panneau | Place par défaut | Comportement |
+|---|---|---|
+| 💬 Tâches du chat | haut gauche | une personne à la fois : reste affichée si elle est seule, sinon change toutes les 30 s ; quelqu'un qui ajoute ou termine une tâche s'affiche aussitôt |
+| 🎥 Mes tâches | haut gauche, sous le chat | toujours affiché : ta tâche en cours, les suivantes, les dernières faites (onglet 🎥 Stream de la page Tâches) |
+| 📝 Commandes | bas gauche | toutes les commandes, par thème, pages tournantes |
+| 🍅 Minuteur | haut droite | anneau focus / pause, cycles |
+| 🌐 Réseaux | bas droite | même roulement que le pack de stream : cycle de 10 min calé sur l'heure réelle, chaque réseau 18 s |
+
+**Déplacer les panneaux** : panneau OBS → *🎬 Modifier la disposition*, ou Stream → Overlays OBS dans l'app. ↖ ↗ ↙ ↘ range un panneau dans un coin (empilé en colonne), ✥ le place librement à la souris, − + règle sa largeur, 👁 l'affiche ou le masque. OBS se met à jour en direct.
+
+### Sources séparées (au choix)
+
 Ajoute une **Source navigateur** dans OBS :
 
 | Overlay | URL | Taille (1080p) | Taille (canevas 4K) |

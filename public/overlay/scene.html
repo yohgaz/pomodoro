@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>Pomodoro — scène</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/theme.css">
+    <style>
+        html, body { margin: 0; background: transparent; overflow: hidden; width: 100%; height: 100%; }
+        body { font-family: var(--font); color: var(--tx); -webkit-font-smoothing: antialiased; }
+        /* Scène dessinée pour 1920×1080, mise à l'échelle de la source (4K compris). */
+        #stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; --acc: #F0653D; --fs: 17px; font-size: var(--fs); }
+        .zone { position: absolute; display: flex; flex-direction: column; gap: var(--gap, 16px); }
+        .zone.tl { left: var(--m); top: var(--m); align-items: flex-start; }
+        .zone.tr { right: var(--m); top: var(--m); align-items: flex-end; }
+        .zone.bl { left: var(--m); bottom: var(--m); align-items: flex-start; justify-content: flex-end; }
+        .zone.br { right: var(--m); bottom: var(--m); align-items: flex-end; justify-content: flex-end; }
+        .panel { position: relative; transition: opacity .5s ease, transform .5s ease; }
+        .panel.free { position: absolute; }
+        .panel.is-off { display: none; }
+
+        .card {
+            background: rgba(17, 19, 27, var(--bg-op, .9));
+            border: 1px solid rgba(255, 255, 255, .08); border-radius: 1.1em;
+            box-shadow: 0 1em 2.6em rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .06);
+            overflow: hidden; position: relative;
+        }
+        .card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--acc), #E8B84D, #6FDA9A); }
+        .head { display: flex; align-items: center; gap: .55em; padding: .85em 1em .55em; }
+        .head .ico { font-size: 1.3em; line-height: 1; }
+        .head .tt { flex: 1; min-width: 0; }
+        .head .t { font-weight: 900; font-size: 1.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .head .st { font-size: .66em; font-weight: 700; color: var(--mu); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: .1em; }
+        .head .st b { color: var(--acc); font-weight: 900; }
+        .head .num { font-size: 1.15em; font-weight: 900; font-variant-numeric: tabular-nums; }
+        .head .num span { color: var(--mu); font-size: .7em; }
+        .body { padding: .1em 1em .9em; }
+        .task { display: flex; gap: .55em; align-items: flex-start; font-weight: 800; line-height: 1.35; padding: .12em 0; font-size: .92em; }
+        .task .ico { width: 1.05em; flex-shrink: 0; text-align: center; margin-top: .05em; }
+        .task.done { color: rgba(244, 242, 237, .38); }
+        .task.done .txt { text-decoration: line-through; text-decoration-color: rgba(111, 218, 154, .5); }
+        .task.done .ico { color: #6FDA9A; }
+        .task.active .txt { color: #fff; }
+        .task.active .ico { display: grid; place-items: center; height: 1.35em; }
+        .task.active .ico i { width: .55em; height: .55em; border-radius: 50%; background: var(--acc); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--acc) 70%, transparent); } 70% { box-shadow: 0 0 0 .45em transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+        .task.next { color: rgba(244, 242, 237, .62); font-weight: 700; font-size: .84em; }
+        .task.next .ico { color: rgba(244, 242, 237, .35); font-size: .8em; margin-top: .15em; }
+        .more { font-size: .66em; font-weight: 800; color: var(--mu); margin-top: .25em; padding-left: 1.9em; }
+        .empty { color: var(--mu); font-weight: 800; font-size: .85em; line-height: 1.5; padding: .2em 0 .1em; }
+        .empty b { color: var(--acc); }
+        .uname { display: flex; align-items: center; gap: .45em; font-weight: 900; font-size: .88em; margin-bottom: .3em; }
+        .badge { font-size: .62em; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; padding: .2em .55em; border-radius: 1em; background: rgba(255, 255, 255, .08); color: var(--tx-2); }
+        .pomo { margin-left: auto; font-size: .78em; font-weight: 900; font-variant-numeric: tabular-nums; color: var(--acc); }
+        .pomo.brk { color: #6FDA9A; }
+        .slide-in { animation: slidein .55s cubic-bezier(.3, 1.2, .5, 1) both; }
+        @keyframes slidein { from { opacity: 0; transform: translateX(1.2em); } }
+        .pager { display: flex; align-items: center; gap: .5em; padding: 0 1em .8em; }
+        .pager .dots { display: flex; gap: .3em; }
+        .pager .dots i { width: .42em; height: .42em; border-radius: 50%; background: rgba(255, 255, 255, .14); }
+        .pager .dots i.on { background: var(--acc); }
+        .pager .prog { flex: 1; height: 2px; background: rgba(255, 255, 255, .07); border-radius: 2px; overflow: hidden; }
+        .pager .prog b { display: block; height: 100%; background: var(--acc); width: 0; }
+        .pager .lbl { font-size: .62em; font-weight: 800; color: var(--mu); }
+
+        /* Commandes */
+        .gtitle { font-size: .68em; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--acc); margin: .1em 0 .45em; }
+        .crow { display: flex; align-items: baseline; gap: .6em; padding: .24em 0; border-bottom: 1px solid rgba(255, 255, 255, .05); }
+        .crow:last-child { border-bottom: 0; }
+        .cmd { font-family: 'JetBrains Mono', var(--font-mono); font-weight: 700; font-size: .76em; color: #E8B84D; background: rgba(232, 184, 77, .1); border-radius: .4em; padding: .08em .42em; white-space: nowrap; flex-shrink: 0; }
+        .cdesc { font-weight: 700; font-size: .8em; color: var(--tx-2); line-height: 1.3; }
+        .calias { font-size: .68em; color: var(--mu); font-weight: 700; white-space: nowrap; margin-left: auto; padding-left: .4em; }
+
+        /* Minuteur */
+        .timer { display: flex; flex-direction: column; align-items: center; padding: 1.1em 1em 1em; }
+        .ring { position: relative; width: 11.5em; height: 11.5em; }
+        .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .ring .arc { transition: stroke-dashoffset .95s linear, stroke .6s; }
+        .ring .c { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .ring .ph { font-size: .7em; font-weight: 900; letter-spacing: .25em; text-transform: uppercase; padding-left: .25em; }
+        .ring .tm { font-size: 2.6em; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: -1px; line-height: 1.05; }
+        .ring .dots { display: flex; gap: .3em; margin-top: .35em; }
+        .ring .dots i { width: .45em; height: .45em; border-radius: 50%; background: rgba(255, 255, 255, .13); }
+        .ring .dots i.on { background: var(--acc); }
+        .timer .lb { font-size: .78em; font-weight: 800; color: var(--tx-2); margin-top: .5em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .timer.paused .tm { opacity: .5; }
+
+        /* Réseaux sociaux (même principe que SocialRotator du pack de stream) */
+        .socials { position: relative; height: 4.3em; }
+        .soc { position: absolute; inset: 0; display: flex; align-items: center; gap: .9em; padding: .7em 1.3em;
+               background: rgba(20, 22, 31, .88); border: 1.5px solid var(--brand); border-radius: 999px;
+               box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 1em 2.4em rgba(0, 0, 0, .35);
+               opacity: 0; transform: translateY(.6em) scale(.97); transition: opacity .5s ease, transform .5s ease; }
+        .soc.on { opacity: 1; transform: none; }
+        .soc svg { width: 1.9em; height: 1.9em; color: var(--brand); flex-shrink: 0; }
+        .soc .pf { font-size: .82em; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+        .soc .hd { font-size: .8em; font-weight: 700; color: var(--mu); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .soc > div { min-width: 0; }
+
+        /* Mode disposition (?edit=1) */
+        body.edit { background: repeating-conic-gradient(#1a1c25 0 25%, #14161e 0 50%) 0 0 / 40px 40px; }
+        body.edit .zone { gap: calc(var(--gap, 16px) + 2.4em); }
+        body.edit .zone.tl, body.edit .zone.tr { top: calc(var(--m) + 2em); }
+        body.edit .panel { outline: 2px dashed rgba(240, 101, 61, .55); outline-offset: 4px; border-radius: 1.1em; }
+        body.edit .panel.is-off { display: block; opacity: .3; }
+        body.edit .soc:first-child { opacity: 1; transform: none; }
+        .tools { display: none; position: absolute; top: -2.3em; left: 0; gap: .2em; z-index: 50; white-space: nowrap; }
+        body.edit .tools { display: flex; }
+        .tools button { font: 800 .72em var(--font); border: 0; background: #F0653D; color: #fff; border-radius: .5em; padding: .3em .55em; cursor: pointer; }
+        .tools button.grip { cursor: move; background: #272B3B; }
+        .tools button.on { background: #6FDA9A; color: #0B0D14; }
+        .tools .nm { font: 900 .72em var(--font); background: #0B0D14; color: #fff; border-radius: .5em; padding: .3em .6em; }
+        .edit-help { display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(11, 13, 20, .92); border: 1px solid rgba(255, 255, 255, .15); border-radius: 1em; padding: 1em 1.4em; font-weight: 700; color: var(--tx-2); text-align: center; line-height: 1.6; max-width: 34em; }
+        body.edit .edit-help { display: block; }
+    </style>
+</head>
+<body>
+    <div id="stage">
+        <div class="zone tl" data-zone="tl"></div>
+        <div class="zone tr" data-zone="tr"></div>
+        <div class="zone bl" data-zone="bl"></div>
+        <div class="zone br" data-zone="br"></div>
+        <div class="edit-help"><b style="color:#fff">Disposition de la scène</b><br>↖ ↗ ↙ ↘ : ranger dans un coin (empilé) · ✥ : glisser librement<br>▲ ▼ : ordre dans le coin · − + : largeur · 👁 : afficher / masquer<br>Tout est enregistré tout de suite ; OBS se met à jour en direct.</div>
+    </div>
+    <script type="module">
+        import { connect, params, esc, fmt, remaining, readable, chime, isObs } from '/overlay/overlay.js';
+        import { SOCIAL_ICONS, SOCIAL_BRANDS } from '/overlay/social-icons.js';
+
+        const EDIT = params.get('edit') === '1';
+        const DEMO = EDIT || params.get('preview') === '1';
+        if (EDIT) document.body.classList.add('edit');
+        const stage = document.getElementById('stage');
+        const PANELS = { chat: 'Tâches du chat', mine: 'Mes tâches', commands: 'Commandes', timer: 'Minuteur', socials: 'Réseaux' };
+        const HIDE_KEY = { chat: 'hidden', mine: 'mineHidden', commands: 'commandsHidden', timer: 'timerHidden', socials: 'socialsHidden' };
+        const VIS_TARGET = { chat: 'tasks', mine: 'mine', commands: 'commands', timer: 'timer', socials: 'socials' };
+        let snap = null;
+        let scale = 1;
+
+        // ── Échelle : la scène 1920×1080 remplit la source, quelle que soit sa taille ──
+        function fit() {
+            scale = Math.min(innerWidth / 1920, innerHeight / 1080) || 1;
+            stage.style.transform = `scale(${scale})`;
+        }
+        addEventListener('resize', fit);
+        fit();
+
+        // ── Panneaux ──
+        const els = {};
+        for (const id of Object.keys(PANELS)) {
+            const el = document.createElement('div');
+            el.className = 'panel';
+            el.dataset.id = id;
+            el.innerHTML = `<div class="tools"></div><div class="content"></div>`;
+            els[id] = el;
+        }
+
+        function layout() {
+            const sc = snap.scene;
+            stage.style.setProperty('--m', sc.margin + 'px');
+            stage.style.setProperty('--gap', sc.gap + 'px');
+            stage.style.setProperty('--acc', snap.overlay.accent);
+            stage.style.setProperty('--fs', (snap.overlay.fontSize - 2) + 'px');
+            stage.style.setProperty('--bg-op', snap.overlay.bgOpacity);
+            const entries = Object.entries(sc.layout).filter(([id]) => PANELS[id]).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+            for (const [id, L] of entries) {
+                const el = els[id];
+                el.style.width = (L.width || 400) + 'px';
+                const off = !!snap[HIDE_KEY[id]];
+                el.classList.toggle('is-off', off);
+                if (L.zone === 'free') {
+                    el.classList.add('free');
+                    el.style.left = (L.x || 0) + 'px'; el.style.top = (L.y || 0) + 'px';
+                    if (el.parentElement !== stage) stage.appendChild(el);
+                } else {
+                    el.classList.remove('free');
+                    el.style.left = ''; el.style.top = '';
+                    const z = stage.querySelector(`.zone[data-zone="${L.zone || 'tl'}"]`);
+                    z.appendChild(el); // l'ordre d'ajout = ordre d'empilement
+                }
+                if (EDIT) drawTools(id, L, off);
+            }
+        }
+
+        // ── Mode disposition ──
+        let saveTimer = null, pendingLayout = {};
+        function saveLayout(id, patch) {
+            Object.assign(snap.scene.layout[id], patch);
+            pendingLayout[id] = { ...snap.scene.layout[id] };
+            layout();
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => {
+                const body = { scene: { layout: pendingLayout } };
+                pendingLayout = {};
+                fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            }, 300);
+        }
+        function drawTools(id, L, off) {
+            const t = els[id].querySelector('.tools');
+            const z = L.zone;
+            t.innerHTML = `<span class="nm">${PANELS[id]}</span>
+                <button class="grip" data-a="drag" title="Glisser librement">✥</button>
+                ${['tl', 'tr', 'bl', 'br'].map(k => `<button data-a="zone" data-z="${k}" class="${z === k ? 'on' : ''}" title="Ranger dans ce coin">${{ tl: '↖', tr: '↗', bl: '↙', br: '↘' }[k]}</button>`).join('')}
+                ${z !== 'free' ? '<button data-a="up" title="Monter">▲</button><button data-a="down" title="Descendre">▼</button>' : ''}
+                <button data-a="narrow" title="Plus étroit">−</button><button data-a="wide" title="Plus large">+</button>
+                <button data-a="vis" class="${off ? '' : 'on'}" title="Afficher / masquer">👁</button>`;
+        }
+        if (EDIT) {
+            stage.addEventListener('click', e => {
+                const b = e.target.closest('.tools button');
+                if (!b || b.dataset.a === 'drag') return;
+                const id = b.closest('.panel').dataset.id;
+                const L = snap.scene.layout[id];
+                const a = b.dataset.a;
+                if (a === 'zone') {
+                    const others = Object.values(snap.scene.layout).filter(x => x !== L && x.zone === b.dataset.z);
+                    saveLayout(id, { zone: b.dataset.z, order: others.length ? Math.max(...others.map(x => x.order || 0)) + 1 : 0 });
+                } else if (a === 'up' || a === 'down') {
+                    const same = Object.entries(snap.scene.layout).filter(([, x]) => x.zone === L.zone).sort((p, q) => (p[1].order || 0) - (q[1].order || 0));
+                    const i = same.findIndex(([k]) => k === id);
+                    const j = a === 'up' ? i - 1 : i + 1;
+                    if (j < 0 || j >= same.length) return;
+                    same.forEach(([, x], k) => { x.order = k; });
+                    const [ka] = same[i], [kb] = same[j];
+                    const oa = snap.scene.layout[ka].order;
+                    saveLayout(kb, { order: oa });
+                    saveLayout(ka, { order: oa + (a === 'up' ? -1 : 1) });
+                } else if (a === 'narrow' || a === 'wide') {
+                    saveLayout(id, { width: Math.max(200, Math.min(1200, (L.width || 400) + (a === 'wide' ? 20 : -20))) });
+                } else if (a === 'vis') {
+                    fetch('/api/stream/action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'visibility', target: VIS_TARGET[id], visible: !!snap[HIDE_KEY[id]] }) });
+                }
+            });
+            // Glisser un panneau : il passe en position libre.
+            let drag = null;
+            stage.addEventListener('pointerdown', e => {
+                const g = e.target.closest('[data-a="drag"]');
+                if (!g) return;
+                e.preventDefault();
+                const el = g.closest('.panel');
+                const r = el.getBoundingClientRect();
+                drag = { id: el.dataset.id, dx: e.clientX - r.left, dy: e.clientY - r.top };
+                g.setPointerCapture(e.pointerId);
+            });
+            stage.addEventListener('pointermove', e => {
+                if (!drag) return;
+                const x = Math.round(Math.max(0, Math.min(1900, (e.clientX - drag.dx) / scale)));
+                const y = Math.round(Math.max(0, Math.min(1060, (e.clientY - drag.dy) / scale)));
+                Object.assign(snap.scene.layout[drag.id], { zone: 'free', x, y });
+                const el = els[drag.id];
+                el.classList.add('free'); el.style.left = x + 'px'; el.style.top = y + 'px';
+                if (el.parentElement !== stage) stage.appendChild(el);
+            });
+            stage.addEventListener('pointerup', () => {
+                if (!drag) return;
+                const L = snap.scene.layout[drag.id];
+                saveLayout(drag.id, { zone: 'free', x: L.x, y: L.y });
+                drag = null;
+            });
+        }
+
+        // ── Données de démonstration (aperçu / disposition) ──
+        const now = () => Date.now();
+        const DEMO_USERS = [
+            { login: 'demo_a', name: 'Lunelle', color: '#9146FF', active: { id: 'a1', text: 'Réviser le chapitre 4 de physique' }, done: [{ id: 'a2', text: 'Fiche de vocabulaire' }], doneCount: 1, backlogCount: 2, pomo: { phase: 'break', endsAt: now() + 180000, phaseDuration: 300000, paused: false } },
+            { login: 'demo_b', name: 'PixelCafé', color: '#1E90FF', active: { id: 'b1', text: 'Dessiner les croquis du perso' }, done: [], doneCount: 0, backlogCount: 0, pomo: null }
+        ];
+        const DEMO_MINE = { name: 'Emilae_TV', project: 'Overlay', active: { id: 'm1', text: 'Finir la scène de début de live' }, next: [{ id: 'm2', text: 'Tester le minuteur' }, { id: 'm3', text: 'Répondre aux messages' }], backlogCount: 3, done: [{ id: 'm4', text: 'Préparer le planning' }], doneCount: 1, pomo: null };
+
+        // ── Tâches du chat : une personne à la fois ──
+        let chatLogin = null, chatShownAt = 0, sigs = new Map(), firstSnap = true;
+        function chatUsers() {
+            const u = snap.users.filter(x => !x.isStreamer);
+            return u.length || !DEMO ? u : DEMO_USERS;
+        }
+        function trackActivity(users) {
+            // Quelqu'un vient d'ajouter / terminer une tâche : on l'affiche tout de suite.
+            for (const u of users) {
+                const sig = `${u.active ? u.active.id : ''}|${u.doneCount}`;
+                if (!firstSnap && sigs.has(u.login) && sigs.get(u.login) !== sig) { chatLogin = u.login; chatShownAt = now(); }
+                if (!firstSnap && !sigs.has(u.login)) { chatLogin = u.login; chatShownAt = now(); }
+                sigs.set(u.login, sig);
+            }
+            firstSnap = false;
+        }
+        function pomoHtml(p) {
+            if (!p || p.phase === 'done') return '';
+            return `<span class="pomo ${p.phase === 'break' ? 'brk' : ''}" data-pomo>${p.paused ? '⏸ ' : '🍅 '}${fmt(remaining(p))}</span>`;
+        }
+        function drawChat(animate) {
+            const users = chatUsers();
+            const o = snap.overlay;
+            const content = els.chat.querySelector('.content');
+            if (!users.find(u => u.login === chatLogin)) { chatLogin = users[0] ? users[0].login : null; chatShownAt = now(); }
+            const u = users.find(x => x.login === chatLogin);
+            const i = users.indexOf(u);
+            const tot = DEMO && !snap.users.length ? { done: 3, total: 5 } : snap.totals;
+            let body;
+            if (!u) body = `<div class="empty">Personne n’a encore de tâche.<br>Écris <b>!task</b> + ta tâche dans le chat ✍️</div>`;
+            else {
+                const color = o.useTwitchColors ? readable(u.color) : '#F4F2ED';
+                body = `<div class="${animate ? 'slide-in' : ''}">
+                    <div class="uname"><span style="color:${color}">${esc(u.name)}</span>${o.showProject && u.project ? `<span class="badge">📁 ${esc(u.project)}</span>` : ''}${o.showPomo ? pomoHtml(u.pomo) : ''}</div>
+                    ${o.showDone ? u.done.map(t => `<div class="task done"><span class="ico">✓</span><span class="txt">${esc(t.text)}</span></div>`).join('') : ''}
+                    ${u.active ? `<div class="task active"><span class="ico"><i></i></span><span class="txt">${esc(u.active.text)}</span></div>` : ''}
+                    ${o.showBacklogCount && u.backlogCount ? `<div class="more">+ ${u.backlogCount} en attente</div>` : ''}
+                </div>`;
+            }
+            content.innerHTML = `<div class="card">
+                <div class="head"><span class="ico">💬</span><div class="tt"><div class="t">${esc(o.title)}</div><div class="st">${esc(o.subtitle).replace(/(![\w]+)/g, '<b>$1</b>')}</div></div><div class="num">${tot.done}<span>/${tot.total}</span></div></div>
+                <div class="body">${body}</div>
+                ${users.length > 1 ? `<div class="pager"><div class="dots">${users.slice(0, 12).map((x, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div><div class="prog"><b id="chatProg"></b></div><span class="lbl">${i + 1}/${users.length}</span></div>` : ''}
+            </div>`;
+        }
+        setInterval(() => {
+            if (!snap) return;
+            const users = chatUsers();
+            const secs = Math.max(5, Number(snap.scene.chatRotateSeconds) || 30);
+            if (users.length > 1 && now() - chatShownAt >= secs * 1000) {
+                const i = users.findIndex(u => u.login === chatLogin);
+                chatLogin = users[(i + 1) % users.length].login;
+                chatShownAt = now();
+                drawChat(true);
+            }
+            const p = document.getElementById('chatProg');
+            if (p) p.style.width = `${Math.min(100, (now() - chatShownAt) / (secs * 10))}%`;
+            // minuteurs perso qui tournent
+            const setPomo = (panel, p) => { const el = els[panel].querySelector('[data-pomo]'); if (el && p) el.textContent = `${p.paused ? '⏸ ' : '🍅 '}${fmt(remaining(p))}`; };
+            const cu = users.find(u => u.login === chatLogin);
+            setPomo('chat', cu && cu.pomo);
+            setPomo('mine', snap.mine && snap.mine.pomo);
+        }, 1000);
+
+        // ── Mes tâches : toujours affiché ──
+        function drawMine() {
+            const m = snap.mine && (snap.mine.active || snap.mine.next.length || snap.mine.done.length || !DEMO) ? snap.mine : (DEMO ? DEMO_MINE : snap.mine);
+            const content = els.mine.querySelector('.content');
+            const o = snap.overlay;
+            let body;
+            if (!m) body = '<div class="empty">Chaîne Twitch non configurée (Stream → Chat &amp; bot).</div>';
+            else if (!m.active && !m.next.length && !m.done.length) body = '<div class="empty">Pas encore de tâche de stream.<br>Ajoute-en depuis le panneau OBS ou l’onglet <b>🎥 Stream</b>.</div>';
+            else body = `
+                ${o.showDone ? m.done.map(t => `<div class="task done"><span class="ico">✓</span><span class="txt">${esc(t.text)}</span></div>`).join('') : ''}
+                ${m.active ? `<div class="task active"><span class="ico"><i></i></span><span class="txt">${esc(m.active.text)}</span></div>` : ''}
+                ${m.next.map(t => `<div class="task next"><span class="ico">○</span><span class="txt">${esc(t.text)}</span></div>`).join('')}
+                ${m.backlogCount > m.next.length ? `<div class="more">+ ${m.backlogCount - m.next.length} autres</div>` : ''}`;
+            content.innerHTML = `<div class="card">
+                <div class="head"><span class="ico">🎥</span><div class="tt"><div class="t">Mes tâches</div><div class="st">${m ? esc(m.name) + (m.project ? ` · 📁 ${esc(m.project)}` : '') : ''}</div></div>${m && m.doneCount ? `<div class="num">${m.doneCount}<span> ✓</span></div>` : ''}${m && o.showPomo ? pomoHtml(m.pomo) : ''}</div>
+                <div class="body">${body}</div></div>`;
+        }
+
+        // ── Commandes : pages tournantes ──
+        let cmdPage = 0, cmdKey = '', cmdPages = [], cmdTimer = null;
+        function buildCmdPages() {
+            const cs = snap.commandsSettings || {};
+            const wanted = new Set(cs.groups || []);
+            const groups = snap.commands.filter(g => (wanted.size ? wanted.has(g.id) : true) || (cs.showMods && g.id === 'mods')).filter(g => !g.mod || cs.showMods);
+            const pages = [];
+            for (const g of groups) {
+                const cmds = g.cmds.filter(c => c.enabled);
+                for (let k = 0; k < cmds.length; k += 7) pages.push({ g, cmds: cmds.slice(k, k + 7), part: cmds.length > 7 ? `${Math.floor(k / 7) + 1}/${Math.ceil(cmds.length / 7)}` : '' });
+            }
+            return pages;
+        }
+        function drawCommands(animate) {
+            const content = els.commands.querySelector('.content');
+            if (!cmdPages.length) { content.innerHTML = ''; return; }
+            cmdPage %= cmdPages.length;
+            const p = cmdPages[cmdPage];
+            content.innerHTML = `<div class="card">
+                <div class="head"><span class="ico">${p.g.icon}</span><div class="tt"><div class="t">${esc((snap.commandsSettings || {}).title || 'Commandes du chat')}</div></div><span class="badge">${cmdPage + 1}/${cmdPages.length}</span></div>
+                <div class="body ${animate ? 'slide-in' : ''}"><div class="gtitle">${esc(p.g.title)}${p.part ? ` · ${p.part}` : ''}</div>
+                ${p.cmds.map(c => `<div class="crow"><span class="cmd">${esc(c.cmd)}</span><span class="cdesc">${esc(c.short || c.desc)}</span>${c.alias ? `<span class="calias">ou !${esc(c.alias)}</span>` : ''}</div>`).join('')}</div></div>`;
+        }
+        function refreshCommands() {
+            const key = JSON.stringify([snap.commands.map(g => g.cmds.filter(c => c.enabled).length), snap.commandsSettings]);
+            if (key === cmdKey) return;
+            cmdKey = key;
+            cmdPages = buildCmdPages();
+            drawCommands(false);
+            clearInterval(cmdTimer);
+            cmdTimer = setInterval(() => { cmdPage++; drawCommands(true); }, Math.max(4, Number((snap.commandsSettings || {}).rotateSeconds) || 12) * 1000);
+        }
+
+        // ── Minuteur ──
+        let lastPhase = null;
+        const C = 2 * Math.PI * 88;
+        function drawTimer() {
+            const content = els.timer.querySelector('.content');
+            let t = snap.timer;
+            if (!t && DEMO) t = { phase: 'work', endsAt: now() + 1122000, phaseDuration: 1500000, paused: false, completed: 1, goal: 4, label: 'Écriture du script' };
+            const L = snap.timerSettings;
+            const col = !t ? '#A6A29B' : t.phase === 'break' ? '#6FDA9A' : t.phase === 'done' ? '#E8B84D' : snap.overlay.accent;
+            const rem = t ? remaining(t) : 0;
+            const frac = !t ? 0 : t.phase === 'done' ? 1 : Math.max(0, Math.min(1, 1 - rem / (t.phaseDuration || 1)));
+            const ph = !t ? L.idleLabel : t.paused ? 'Pause ⏸' : t.phase === 'work' ? L.focusLabel : t.phase === 'break' ? L.breakLabel : L.doneLabel;
+            if (!content.firstChild) {
+                content.innerHTML = `<div class="card"><div class="timer"><div class="ring"><svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="88" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="11"/><circle class="arc" cx="100" cy="100" r="88" fill="none" stroke-width="11" stroke-linecap="round" stroke-dasharray="${C}"/></svg><div class="c"><div class="ph"></div><div class="tm"></div><div class="dots"></div></div></div><div class="lb"></div></div></div>`;
+            }
+            const q = s => content.querySelector(s);
+            q('.timer').classList.toggle('paused', !!(t && t.paused));
+            q('.arc').style.stroke = col;
+            q('.arc').style.strokeDashoffset = String(C * (1 - frac));
+            q('.ph').textContent = ph; q('.ph').style.color = col;
+            q('.tm').textContent = t ? fmt(rem) : '--:--';
+            q('.lb').textContent = t && t.label ? t.label : '';
+            q('.dots').innerHTML = t ? Array.from({ length: Math.min(t.goal, 12) }, (_, k) => `<i class="${k < t.completed ? 'on' : ''}"></i>`).join('') : '';
+            if (t && lastPhase && lastPhase !== t.phase && L.sound && !DEMO && params.get('sound') !== '0') chime(t.phase);
+            lastPhase = t ? t.phase : null;
+        }
+        setInterval(() => { if (snap) drawTimer(); }, 500);
+
+        // ── Réseaux sociaux : cycle calé sur l'heure réelle ──
+        let socKey = '';
+        function drawSocials() {
+            const list = (snap.scene.socials || []).filter(s => s.handle);
+            const content = els.socials.querySelector('.content');
+            const key = JSON.stringify(list);
+            if (key !== socKey) {
+                socKey = key;
+                content.innerHTML = `<div class="socials">${list.map(s => {
+                    const brand = s.color || SOCIAL_BRANDS[s.platform] || '#F0653D';
+                    const path = SOCIAL_ICONS[s.platform] || SOCIAL_ICONS.web;
+                    return `<div class="soc" style="--brand:${esc(brand)}"><svg viewBox="0 0 24 24" fill="currentColor"><path d="${path}"/></svg><div><div class="pf">${esc(s.label || s.platform)}</div><div class="hd">${esc(s.handle)}</div></div></div>`;
+                }).join('')}</div>`;
+            }
+            tickSocials();
+        }
+        function tickSocials() {
+            if (!snap) return;
+            const slides = [...els.socials.querySelectorAll('.soc')];
+            if (!slides.length) return;
+            const cycle = Math.max(1, Number(snap.scene.socialsCycleMinutes) || 10) * 60000;
+            const slot = cycle / slides.length;
+            const show = Math.min(slot, Math.max(3, Number(snap.scene.socialsShowSeconds) || 18) * 1000);
+            const pos = Date.now() % cycle;
+            const idx = Math.floor(pos / slot);
+            const visible = pos % slot < show;
+            slides.forEach((s, k) => s.classList.toggle('on', (visible || EDIT) && k === (EDIT ? 0 : idx)));
+        }
+        setInterval(tickSocials, 1000);
+
+        // ── Flux temps réel ──
+        connect(s => {
+            snap = s;
+            const before = chatLogin;
+            trackActivity(snap.users.filter(u => !u.isStreamer));
+            layout();
+            drawChat(before !== null && before !== chatLogin);
+            drawMine();
+            refreshCommands();
+            drawTimer();
+            drawSocials();
+        });
+    </script>
+</body>
+</html>

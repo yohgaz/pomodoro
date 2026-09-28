@@ -79,9 +79,12 @@
     <details class="sec" data-sec="display" open>
         <summary>👁️ Affichages</summary>
         <div class="body">
-            <label class="sw big"><span>Liste de tâches</span><input type="checkbox" data-vis="tasks"></label>
-            <label class="sw big"><span>Minuteur</span><input type="checkbox" data-vis="timer"></label>
-            <label class="sw big"><span>Commandes</span><input type="checkbox" data-vis="commands"></label>
+            <label class="sw big"><span>💬 Tâches du chat</span><input type="checkbox" data-vis="tasks"></label>
+            <label class="sw big"><span>🎥 Mes tâches</span><input type="checkbox" data-vis="mine"></label>
+            <label class="sw big"><span>📝 Commandes</span><input type="checkbox" data-vis="commands"></label>
+            <label class="sw big"><span>🍅 Minuteur</span><input type="checkbox" data-vis="timer"></label>
+            <label class="sw big"><span>🌐 Réseaux sociaux</span><input type="checkbox" data-vis="socials"></label>
+            <div class="btns" style="margin:4px 0 8px"><button class="b acc" id="editLayout">🎬 Modifier la disposition</button></div>
             <label class="sw"><span>Bandeau des commandes<small>en bas de la liste de tâches</small></span><input type="checkbox" data-set="overlay.commandsFooter"></label>
             <label class="sw"><span>Tâches terminées</span><input type="checkbox" data-set="overlay.showDone"></label>
             <label class="sw"><span>Minuteurs du chat</span><input type="checkbox" data-set="overlay.showPomo"></label>
@@ -90,6 +93,7 @@
             <div class="range"><span>Taille du texte</span><em data-val="overlay.fontSize"></em><input type="range" min="12" max="40" data-set="overlay.fontSize"></div>
             <div class="range"><span>Vitesse de défilement</span><em data-val="overlay.scrollSpeed"></em><input type="range" min="5" max="150" data-set="overlay.scrollSpeed"></div>
             <div class="range"><span>Tes tâches à venir affichées</span><em data-val="overlay.streamerNext"></em><input type="range" min="0" max="8" data-set="overlay.streamerNext"></div>
+            <div class="range"><span>Rotation des viewers (s)</span><em data-val="scene.chatRotateSeconds"></em><input type="range" min="5" max="120" data-set="scene.chatRotateSeconds"></div>
             <div class="range"><span>Rotation des commandes (s)</span><em data-val="commands.rotateSeconds"></em><input type="range" min="4" max="40" data-set="commands.rotateSeconds"></div>
             <div class="btns"><button class="b" id="newSession">✨ Nouvelle session</button><button class="b ghost" id="openApp">⚙️ Tous les réglages</button></div>
         </div>
@@ -165,6 +169,8 @@
         });
         $('newSession').onclick = async () => { if (confirm('Nouvelle session : les tâches terminées disparaissent de l’overlay. Continuer ?')) { await act('newSession'); toast('Nouvelle session ✨'); } };
         $('openApp').onclick = () => window.open('/stream/overlay', '_blank');
+        // L'éditeur de disposition s'ouvre dans une fenêtre 16:9 ; OBS se met à jour en direct.
+        $('editLayout').onclick = () => window.open('/overlay/scene?edit=1', 'pomodoro-layout', 'width=1280,height=760');
 
         function drawSettings() {
             if (!settings) return;
@@ -263,6 +269,8 @@
             document.querySelector('[data-vis="tasks"]').checked = !snap.hidden;
             document.querySelector('[data-vis="timer"]').checked = !snap.timerHidden;
             document.querySelector('[data-vis="commands"]').checked = !snap.commandsHidden;
+            document.querySelector('[data-vis="mine"]').checked = !snap.mineHidden;
+            document.querySelector('[data-vis="socials"]').checked = !snap.socialsHidden;
             drawTimer();
             drawChat();
         }
