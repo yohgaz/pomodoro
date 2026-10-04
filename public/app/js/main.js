@@ -151,6 +151,12 @@ function renderSidebar() {
     top.appendChild(navItem({ label: 'Tâches', ico: '☑️', active: S.wide === 'tasks', onclick: () => navigate('/tasks'), count: S.taskCount || '',
         extra: S.taskUrgent ? h('span', { class: 'pill accent', title: 'En retard ou pour aujourd’hui' }, `🔥 ${S.taskUrgent}`) : null }));
     top.appendChild(navItem({ label: 'Calendrier', ico: '📅', active: S.wide === 'calendar', onclick: () => navigate('/calendar') }));
+    const bm = (S.dbs || []).find(d => d.kind === 'bookmarks');
+    top.appendChild(navItem({ label: 'Favoris', ico: '🔖', active: !!bm && S.wide === 'db' && S.wideDb === bm.id, onclick: async () => {
+        const db = bm || await post('/api/dbs/bookmarks');
+        if (!bm) await refreshCounts();
+        navigate(`/db/${db.id}`);
+    } }));
     top.appendChild(navItem({ label: 'Revue hebdo', ico: '🔁', active: S.wide === 'review', onclick: () => navigate('/review'),
         extra: reviewDue ? h('span', { class: 'pill gold' }, 'à faire') : null }));
     scroll.appendChild(top);
@@ -165,8 +171,8 @@ function renderSidebar() {
             await refreshCounts();
             navigate(`/db/${db.id}`);
         } }, '+')));
-    for (const d of S.dbs || []) dbg.appendChild(navItem({ label: d.name, ico: d.icon || '🗃️', active: S.wide === 'db' && S.wideDb === d.id, onclick: () => navigate(`/db/${d.id}`) }));
-    if (!(S.dbs || []).length) dbg.appendChild(h('div', { class: 'muted', style: { fontSize: '12.5px', padding: '2px 9px 6px', fontWeight: 600 } }, 'Aucune base pour l’instant.'));
+    for (const d of (S.dbs || []).filter(x => x.kind !== 'bookmarks')) dbg.appendChild(navItem({ label: d.name, ico: d.icon || '🗃️', active: S.wide === 'db' && S.wideDb === d.id, onclick: () => navigate(`/db/${d.id}`) }));
+    if (!(S.dbs || []).some(x => x.kind !== 'bookmarks')) dbg.appendChild(h('div', { class: 'muted', style: { fontSize: '12.5px', padding: '2px 9px 6px', fontWeight: 600 } }, 'Aucune base pour l’instant.'));
     scroll.appendChild(dbg);
     // IPARA
     const g = h('div', { class: 'side-group' }, h('div', { class: 'side-title' }, h('span', {}, 'IPARA')));

@@ -293,6 +293,12 @@ route('POST', '/api/files', async ({ req, query }) => {
 // Bases de données
 route('GET', '/api/dbs', () => dbs.list());
 route('POST', '/api/dbs', async ({ req }) => dbs.save(await readJson(req)));
+route('POST', '/api/dbs/bookmarks', () => {
+    const db = dbs.ensureBookmarks();
+    // L'app mobile retrouve la base des favoris grâce aux réglages partagés.
+    if (engine.settings().bookmarksDb !== db.id) engine.saveSettings({ bookmarksDb: db.id });
+    return db;
+});
 route('POST', '/api/dbs/seed-recipes', () => { const r = dbs.seedRecipes(); return { id: r.db.id, created: r.created }; });
 route('GET', '/api/dbs/:id', ({ params }) => { const d = dbs.get(params.id); if (!d) throw Object.assign(new Error('base introuvable'), { status: 404 }); return d; });
 route('PUT', '/api/dbs/:id', async ({ req, params }) => dbs.save({ ...(await readJson(req)), id: params.id }));

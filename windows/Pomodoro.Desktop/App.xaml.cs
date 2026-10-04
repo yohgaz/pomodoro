@@ -73,6 +73,12 @@ public partial class App : Application
         menu.Items.Add("Capture rapide\tCtrl+Alt+N", null, (_, _) => ShowCapture());
         menu.Items.Add("Mes tâches", null, (_, _) => { main.ShowAndFocus(); main.Go("/tasks"); });
         menu.Items.Add("Calendrier", null, (_, _) => { main.ShowAndFocus(); main.Go("/calendar"); });
+        menu.Items.Add("Favoris", null, async (_, _) =>
+        {
+            using var r = await server.PostForJsonAsync("/api/dbs/bookmarks", new { });
+            main.ShowAndFocus();
+            if (r != null && r.RootElement.TryGetProperty("id", out var id)) main.Go("/db/" + id.GetString());
+        });
         menu.Items.Add("Liste de courses", null, async (_, _) =>
         {
             using var r = await server.PostForJsonAsync("/api/shopping/refresh", new { });

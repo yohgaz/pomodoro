@@ -122,3 +122,5 @@ details.help code { background: var(--c3); padding: 1px 5px; border-radius: 5px;
 .add-inline input { flex: 1; border: 1px solid var(--line-strong); background: var(--c1); border-radius: 10px; padding: 10px 12px; font-size: 16px; outline: none; min-width: 0; }
 .add-inline input:focus { border-color: var(--accent); }
 .add-inline button { width: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-size: 22px; font-weight: 900; }
+.bm-ico { background: var(--c3); color: var(--accent); font-weight: 900; overflow: hidden; }
+.bm-ico img { width: 18px; height: 18px; object-fit: contain; }

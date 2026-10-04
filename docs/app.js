@@ -105,6 +105,7 @@ async function route() {
     if ((m = h.match(/^#\/n\/([^/]+)/))) return renderNote(m[1]);
     if ((m = h.match(/^#\/v\/(.+)$/))) return renderList(decodeURIComponent(m[1]));
     if (h.startsWith('#/tasks')) return renderTasks();
+    if (h.startsWith('#/favoris')) return renderBookmarks();
     return renderHome();
 }
 
@@ -152,7 +153,7 @@ function renderHome() {
             <label class="search">${I.search}<input id="q" type="search" placeholder="Rechercher partout" enterkeyhint="search"></label>
             <div id="results"></div>
             <div id="homeGroups">
-                <div class="group" style="margin-top:14px"><button class="row" data-go="#/tasks"><span class="ico">☑️</span><span class="lbl">Tâches</span><span class="cnt ${urgent ? 'hot' : ''}">${openTasks().length || ''}</span><span class="chev">›</span></button><button class="row" id="tplBtn"><span class="ico">🧩</span><span class="lbl">Nouvelle note depuis un modèle</span><span class="chev">›</span></button></div>
+                <div class="group" style="margin-top:14px"><button class="row" data-go="#/tasks"><span class="ico">☑️</span><span class="lbl">Tâches</span><span class="cnt ${urgent ? 'hot' : ''}">${openTasks().length || ''}</span><span class="chev">›</span></button><button class="row" data-go="#/favoris"><span class="ico">🔖</span><span class="lbl">Favoris</span><span class="cnt">${bookmarks().length || ''}</span><span class="chev">›</span></button><button class="row" id="tplBtn"><span class="ico">🧩</span><span class="lbl">Nouvelle note depuis un modèle</span><span class="chev">›</span></button></div>
                 <div class="group-title">IPARA</div>${rows.join('')}
                 <div class="group-title">Filtres</div><div class="group">${filters.map(([v, ico, l]) => `<button class="row" data-go="#/v/${v}"><span class="ico">${ico}</span><span class="lbl">${l}</span><span class="cnt">${count(v) || ''}</span><span class="chev">›</span></button>`).join('')}</div>
                 ${tagCounts.size ? `<div class="group-title">Tags</div><div class="group">${[...tagCounts].sort((a, b) => a[0].localeCompare(b[0], 'fr')).map(([t, n]) => `<button class="row" data-go="#/v/${encodeURIComponent('tag:' + t)}"><span class="ico" style="color:var(--ed-tag)">#</span><span class="lbl">${esc(t)}</span><span class="cnt">${n}</span></button>`).join('')}</div>` : ''}
@@ -392,6 +393,110 @@ function renderMyList(kind) {
 }
 
 // ── Modèles (notes portant le tag #modèle) ──
+// ── Favoris d'internet (saisis à la main) ──
+const bookmarks = () => store.list().filter(n => n.db && n.db === store.settings.bookmarksDb && !n.trashed);
+const hostOf = url => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+let bmQuery = '';
+
+function renderBookmarks() {
+    destroyEditor();
+    const all = bookmarks();
+    const q = fold(bmQuery);
+    const list = q ? all.filter(n => fold(n.body + ' ' + JSON.stringify(n.props || {})).includes(q)) : all;
+    const groups = new Map();
+    const pinned = list.filter(n => (n.props || {}).favori);
+    if (pinned.length) groups.set('★ Épinglés', pinned);
+    for (const n of list) { const g = (n.props || {}).dossier || 'Sans dossier'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(n); }
+    const order = [...groups.keys()].sort((a, b) => a === '★ Épinglés' ? -1 : b === '★ Épinglés' ? 1 : a === 'Sans dossier' ? 1 : b === 'Sans dossier' ? -1 : a.localeCompare(b, 'fr'));
+    const items = [];
+    const rowHtml = n => {
+        items.push(n);
+        const p = n.props || {};
+        const host = hostOf(p.url || '');
+        return `<div class="row bm-row" data-i="${items.length - 1}">
+            <span class="ico bm-ico"><img src="https://${esc(host)}/favicon.ico" alt="" onerror="this.replaceWith(document.createTextNode('${esc((meta(n).title || host || '?').charAt(0).toUpperCase())}'))"></span>
+            <span class="lbl" style="white-space:normal"><b>${esc(meta(n).title)}</b><br><small style="color:var(--mu)">${esc(host)}${meta(n).excerpt ? ' · ' + esc(meta(n).excerpt) : ''}</small></span>
+            <span class="chev" data-more="${items.length - 1}">⋯</span></div>`;
+    };
+    app.innerHTML = `
+    <div class="screen">
+        <div class="topbar"><button class="tb-btn" id="back">${I.back}</button><h1>🔖 Favoris</h1></div>
+        <div class="scroll">
+            <label class="search">${I.search}<input id="bmq" type="search" placeholder="Chercher un lien" value="${esc(bmQuery)}"></label>
+            ${!store.settings.bookmarksDb ? '<div class="empty"><b>🔖</b>Ouvre « Favoris » une première fois sur le PC ou le Mac pour créer la rubrique.</div>'
+            : list.length ? order.map(g => `<div class="group-title">${esc(g)}</div><div class="group">${groups.get(g).map(rowHtml).join('')}</div>`).join('')
+            : `<div class="empty"><b>🔖</b>${all.length ? 'Aucun lien ne correspond.' : 'Aucun favori pour l’instant.'}</div>`}
+        </div>
+        ${store.settings.bookmarksDb ? `<button class="fab" id="fab" aria-label="Ajouter un favori">${I.plus}</button>` : ''}
+    </div>`;
+    app.querySelector('#back').onclick = () => go('#/');
+    const bq = app.querySelector('#bmq');
+    bq.oninput = () => { bmQuery = bq.value; const pos = bq.selectionStart; renderBookmarks(); const nb = app.querySelector('#bmq'); nb.focus(); nb.setSelectionRange(pos, pos); };
+    const fab = app.querySelector('#fab');
+    if (fab) fab.onclick = () => bookmarkSheet();
+    app.querySelectorAll('.bm-row').forEach(row => row.onclick = e => {
+        const n = items[Number(row.dataset.i)];
+        if (e.target.closest('[data-more]')) return bookmarkMenu(n);
+        const url = (n.props || {}).url;
+        if (url) window.open(url, '_blank', 'noopener'); else bookmarkSheet(n);
+    });
+}
+
+function bookmarkMenu(n) {
+    const p = n.props || {};
+    sheet(`<h3>${esc(meta(n).title)}</h3>
+        <button class="row" data-a="open"><span class="lbl">🌐 Ouvrir</span></button>
+        <button class="row" data-a="copy"><span class="lbl">⧉ Copier l’adresse</span></button>
+        <button class="row" data-a="pin"><span class="lbl">${p.favori ? '☆ Désépingler' : '★ Épingler'}</span></button>
+        <button class="row" data-a="edit"><span class="lbl">✏️ Modifier</span></button>
+        <button class="row danger" data-a="del"><span class="lbl">🗑️ Supprimer</span></button>`, (bg, close) => {
+        bg.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => {
+            close();
+            const a = b.dataset.a;
+            if (a === 'open' && p.url) window.open(p.url, '_blank', 'noopener');
+            if (a === 'copy' && p.url) { try { await navigator.clipboard.writeText(p.url); toast('Adresse copiée'); } catch (e) { toast(p.url); } }
+            if (a === 'pin') { n.props = { ...p, favori: !p.favori }; await store.saveNote(n); renderBookmarks(); }
+            if (a === 'edit') bookmarkSheet(n);
+            if (a === 'del' && confirm(`Supprimer « ${meta(n).title} » ?`)) { n.trashed = true; n.trashedAt = Date.now(); await store.saveNote(n); renderBookmarks(); }
+        });
+    });
+}
+
+function bookmarkSheet(n) {
+    const p = n ? n.props || {} : {};
+    const folders = [...new Set(bookmarks().map(x => (x.props || {}).dossier).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+    sheet(`<h3>${n ? 'Modifier le favori' : 'Ajouter un favori'}</h3>
+        <div style="padding:0 20px">
+            <label class="field"><span>Adresse</span><input id="bu" type="url" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="https://…" value="${esc(p.url || '')}"></label>
+            <label class="field"><span>Nom</span><input id="bt" placeholder="Facultatif : sinon le domaine" value="${esc(n ? meta(n).title : '')}"></label>
+            <label class="field"><span>Dossier</span><input id="bd" list="bmFolders" placeholder="Outils, Jeux, Cuisine…" value="${esc(p.dossier || '')}"><datalist id="bmFolders">${folders.map(f => `<option value="${esc(f)}">`).join('')}</datalist></label>
+            <label class="field"><span>Note</span><input id="bn" placeholder="À quoi sert ce lien (facultatif)" value="${esc(n ? meta(n).excerpt : '')}"></label>
+            <div class="err" id="be"></div>
+            <button class="btn primary" id="bs">${n ? 'Enregistrer' : 'Ajouter'}</button>
+        </div>`, (bg, close) => {
+        const $ = id => bg.querySelector('#' + id);
+        $('bs').onclick = async () => {
+            let u = $('bu').value.trim();
+            if (!u) { $('be').textContent = 'L’adresse est obligatoire.'; return; }
+            if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
+            try { new URL(u); } catch (e) { $('be').textContent = 'Adresse invalide.'; return; }
+            const name = $('bt').value.trim() || hostOf(u);
+            const body = `# ${name}\n\n${$('bn').value.trim()}\n`;
+            const props = { ...p, url: u, dossier: $('bd').value.trim() || undefined };
+            if (!props.dossier) delete props.dossier;
+            const { newId } = await import('./store.js');
+            const note = n || { id: newId(), container: null, extra: {}, db: store.settings.bookmarksDb, _sha: null };
+            note.body = body;
+            note.props = props;
+            await store.saveNote(note);
+            close();
+            toast(n ? 'Favori modifié' : 'Favori ajouté 🔖');
+            renderBookmarks();
+        };
+        setTimeout(() => $('bu').focus(), 150);
+    });
+}
+
 function templateSheet() {
     const tpls = store.list().filter(n => !n.trashed && isTemplate(n)).sort((a, b) => meta(a).title.localeCompare(meta(b).title, 'fr'));
     const label = t => meta(t).title.split('{{')[0].replace(/[s:—-]+$/, '') || 'Sans titre';

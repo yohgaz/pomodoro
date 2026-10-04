@@ -34,6 +34,7 @@ export async function render(container, ctx) {
 }
 
 function viewsOf(db) {
+    if (db.kind === 'bookmarks') return [{ id: 'links', name: 'Favoris', type: 'links' }, { id: 'table', name: 'Tableau', type: 'table' }];
     const out = [...(db.views || [])];
     if (!out.some(v => v.type === 'gallery')) out.push({ id: 'gallery', name: 'Galerie', type: 'gallery' });
     if (!out.some(v => v.type === 'table')) out.push({ id: 'table', name: 'Tableau', type: 'table' });
@@ -46,6 +47,7 @@ function viewsOf(db) {
 const propById = id => V.db.properties.find(p => p.id === id);
 const optColor = (p, name) => ((p.options || []).find(o => o.name === name) || {}).color || '#A6A29B';
 const isRecipes = () => V.db.kind === 'recipes';
+const isBookmarks = () => V.db.kind === 'bookmarks';
 const totalTime = r => (Number(r.props.preparation) || 0) + (Number(r.props.cuisson) || 0);
 const fmtMin = m => !m ? '' : m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + String(m % 60).padStart(2, '0') : ''}` : `${m} min`;
 const coverColor = r => { const p = V.db.properties.find(x => x.type === 'select'); return p && r.props[p.id] ? optColor(p, r.props[p.id]) : (V.db.color || '#F0653D'); };
@@ -90,7 +92,8 @@ function drawList() {
             ...p.options.map(o => ({ icon: V.filters[p.id] === o.name ? '✓' : '●', text: o.name, run: () => { V.filters[p.id] = o.name; drawList(); } }))]);
         return b;
     });
-    const favBtn = propById('favori') ? h('button', { class: `chip-btn ${V.favOnly ? 'is-on' : ''}`, onclick: () => { V.favOnly = !V.favOnly; drawList(); } }, V.favOnly ? '★ Favoris' : '☆ Favoris') : null;
+    const favLabel = isBookmarks() ? 'Épinglés' : 'Favoris';
+    const favBtn = propById('favori') ? h('button', { class: `chip-btn ${V.favOnly ? 'is-on' : ''}`, onclick: () => { V.favOnly = !V.favOnly; drawList(); } }, V.favOnly ? `★ ${favLabel}` : `☆ ${favLabel}`) : null;
     const sortSel = h('select', { class: 'input', style: { width: 'auto' } },
         ...[['title', 'Nom'], ['recent', 'Modifiées récemment'], ...(isRecipes() ? [['time', 'Plus rapides']] : [])].map(([k, l]) => h('option', { value: k, selected: V.sort === k }, `Tri : ${l}`)));
     sortSel.onchange = () => { V.sort = sortSel.value; drawBody(view); };
@@ -99,13 +102,13 @@ function drawList() {
         h('div', { class: 'db-head' },
             h('div', { class: 'db-icon' }, db.icon || '🗃️'),
             h('div', { style: { flex: 1, minWidth: 0 } }, h('h1', {}, db.name), db.description ? h('p', { class: 'help', style: { margin: '4px 0 0' } }, db.description) : null),
-            h('button', { class: 'btn primary', onclick: newRow }, icon('plus'), isRecipes() ? 'Nouvelle recette' : 'Nouvelle fiche'),
+            h('button', { class: 'btn primary', onclick: () => isBookmarks() ? bookmarkDialog() : newRow() }, icon('plus'), isRecipes() ? 'Nouvelle recette' : isBookmarks() ? 'Ajouter un favori' : 'Nouvelle fiche'),
             h('button', { class: 'icon-btn', title: 'Propriétés et options', onclick: e => dbMenu(e.currentTarget) }, icon('more'))),
         h('div', { class: 'tabs', style: { marginBottom: '14px' } }, ...views.map(v => h('button', { class: `tab ${v.id === view.id ? 'is-on' : ''}`, onclick: () => {
             V.view = v.id; try { localStorage.setItem('pomodoro.dbview.' + db.id, v.id); } catch (e) { /* rien */ } drawList();
-        } }, ({ gallery: '🖼️ ', table: '📋 ', board: '🗂️ ' }[v.type] || '') + v.name))),
+        } }, ({ gallery: '🖼️ ', table: '📋 ', board: '🗂️ ', links: '🔖 ' }[v.type] || '') + v.name))),
         h('div', { class: 'row', style: { marginBottom: '16px', flexWrap: 'wrap' } }, search, ...filters, favBtn, h('span', { style: { flex: 1 } }), sortSel,
-            h('span', { class: 'muted', style: { fontWeight: 800, fontSize: '13px' } }, `${V.rows.length} fiche${V.rows.length > 1 ? 's' : ''}`)),
+            h('span', { class: 'muted', style: { fontWeight: 800, fontSize: '13px' } }, isBookmarks() ? `${V.rows.length} lien${V.rows.length > 1 ? 's' : ''}` : `${V.rows.length} fiche${V.rows.length > 1 ? 's' : ''}`)),
         h('div', { id: 'dbBody' })
     );
     drawBody(view);
@@ -115,13 +118,142 @@ function drawBody(view) {
     const box = document.getElementById('dbBody');
     if (!box) return;
     const rows = filtered();
-    if (!rows.length) { box.replaceChildren(h('div', { class: 'card', style: { textAlign: 'center', padding: '40px' } }, h('div', { style: { fontSize: '40px' } }, V.db.icon || '🗃️'), h('p', { class: 'help' }, V.rows.length ? 'Aucune fiche ne correspond.' : 'Aucune fiche pour l’instant.'))); return; }
-    if (view.type === 'table') box.replaceChildren(tableView(rows));
+    if (!rows.length) {
+        box.replaceChildren(h('div', { class: 'card', style: { textAlign: 'center', padding: '40px' } }, h('div', { style: { fontSize: '40px' } }, V.db.icon || '🗃️'),
+            h('p', { class: 'help' }, V.rows.length ? 'Aucune fiche ne correspond.' : isBookmarks() ? 'Aucun favori pour l’instant : ajoute ton premier lien.' : 'Aucune fiche pour l’instant.'),
+            isBookmarks() && !V.rows.length ? h('button', { class: 'btn primary', onclick: () => bookmarkDialog() }, icon('plus'), 'Ajouter un favori') : null));
+        return;
+    }
+    if (view.type === 'links') box.replaceChildren(linksView(rows));
+    else if (view.type === 'table') box.replaceChildren(tableView(rows));
     else if (view.type === 'board') box.replaceChildren(boardView(rows, view));
     else box.replaceChildren(galleryView(rows));
 }
 
-const openRow = r => V.ctx.navigate(`/db/${V.db.id}/${r.id}`);
+const openRow = r => {
+    if (isBookmarks()) { if (r.props.url) window.open(r.props.url, '_blank', 'noopener'); else bookmarkDialog(r); return; }
+    V.ctx.navigate(`/db/${V.db.id}/${r.id}`);
+};
+
+// ── Favoris : liens rangés par dossier, façon page de démarrage ──
+const hostOf = url => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+const LETTER_COLORS = ['#F0653D', '#E8B84D', '#6FDA9A', '#5FD4D4', '#7AB8FF', '#C792EA', '#FF8FB1'];
+
+// Icône du site : d'abord /favicon.ico du site lui-même, sinon une lettre colorée.
+function favicon(url, title) {
+    const host = hostOf(url);
+    const letter = (title || host || '?').trim().charAt(0).toUpperCase();
+    const col = LETTER_COLORS[[...host].reduce((n, c) => n + c.charCodeAt(0), 0) % LETTER_COLORS.length];
+    const box = h('span', { class: 'bm-ico', style: { '--c': col } }, h('span', { class: 'bm-letter' }, letter));
+    if (host) {
+        const img = h('img', { src: `https://${host}/favicon.ico`, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+        img.onload = () => { if (img.naturalWidth > 1) box.classList.add('has-img'); };
+        img.onerror = () => img.remove();
+        box.appendChild(img);
+    }
+    return box;
+}
+
+function linksView(rows) {
+    const groups = new Map();
+    const pinned = rows.filter(r => r.props.favori);
+    if (pinned.length && !V.favOnly) groups.set('★ Épinglés', pinned);
+    for (const r of rows) {
+        const g = r.props.dossier || 'Sans dossier';
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(r);
+    }
+    const dossier = propById('dossier');
+    const order = [...groups.keys()].sort((a, b) => {
+        if (a === '★ Épinglés') return -1; if (b === '★ Épinglés') return 1;
+        if (a === 'Sans dossier') return 1; if (b === 'Sans dossier') return -1;
+        return a.localeCompare(b, 'fr');
+    });
+    return h('div', { class: 'bm-groups' }, ...order.map(g => {
+        const color = g === '★ Épinglés' ? '#E8B84D' : dossier ? optColor(dossier, g) : '#A6A29B';
+        return h('section', { class: 'bm-group' },
+            h('h3', { class: 'bm-gtitle', style: { '--c': color } }, h('span', { class: 'bm-dot' }), g, h('small', {}, String(groups.get(g).length))),
+            h('div', { class: 'bm-grid' }, ...groups.get(g).map(bookmarkCard)));
+    }));
+}
+
+function bookmarkCard(r) {
+    const url = r.props.url || '';
+    const tags = propById('tags');
+    const card = h('a', { class: 'bm-card', href: url || '#', target: '_blank', rel: 'noopener noreferrer', onclick: e => { if (!url) { e.preventDefault(); bookmarkDialog(r); } } },
+        favicon(url, r.title),
+        h('div', { class: 'bm-text' },
+            h('div', { class: 'bm-title' }, r.title || hostOf(url) || 'Sans titre'),
+            h('div', { class: 'bm-host' }, hostOf(url) || 'adresse manquante'),
+            r.excerpt ? h('div', { class: 'bm-desc' }, r.excerpt) : null,
+            tags && r.props.tags && r.props.tags.length ? h('div', { class: 'bm-tags' }, ...r.props.tags.map(t => chip(tags, t))) : null),
+        h('div', { class: 'bm-actions' },
+            h('button', { title: r.props.favori ? 'Désépingler' : 'Épingler', class: r.props.favori ? 'is-on' : '', onclick: async e => {
+                e.preventDefault(); e.stopPropagation();
+                await saveProps(r.id, { favori: !r.props.favori }); drawList();
+            } }, r.props.favori ? '★' : '☆'),
+            h('button', { title: 'Copier l’adresse', onclick: e => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(url); toast('Adresse copiée'); } }, '⧉'),
+            h('button', { title: 'Modifier', onclick: e => { e.preventDefault(); e.stopPropagation(); bookmarkDialog(r); } }, '✎'),
+            h('button', { title: 'Supprimer', onclick: async e => {
+                e.preventDefault(); e.stopPropagation();
+                if (!await confirmBox(`Supprimer « ${r.title} » ?`, 'Le favori part à la corbeille (récupérable 30 jours).', { ok: 'Supprimer', danger: true })) return;
+                await put(`/api/notes/${r.id}`, { trashed: true });
+                V.rows = V.rows.filter(x => x.id !== r.id); drawList();
+            } }, '🗑')));
+    return card;
+}
+
+// Ajouter / modifier un favori (saisie manuelle).
+function bookmarkDialog(r) {
+    const isNew = !r;
+    const p = r ? r.props : {};
+    const url = h('input', { class: 'input', value: p.url || '', placeholder: 'https://…', type: 'url', autocomplete: 'off' });
+    const title = h('input', { class: 'input', value: r ? r.title : '', placeholder: 'Nom du site (facultatif : sinon le domaine)' });
+    const dossierProp = propById('dossier');
+    const dlist = h('datalist', { id: 'bmDossiers' }, ...((dossierProp && dossierProp.options) || []).map(o => h('option', { value: o.name })));
+    const dossier = h('input', { class: 'input', value: p.dossier || V.filters.dossier || '', placeholder: 'Ex. Outils, Jeux, Cuisine, Stream…', list: 'bmDossiers' });
+    const tags = h('input', { class: 'input', value: (p.tags || []).join(', '), placeholder: 'séparés par des virgules' });
+    const desc = h('textarea', { placeholder: 'Une note pour te rappeler à quoi sert ce lien (facultatif)' }, r ? (r.excerpt || '') : '');
+    const pin = h('input', { type: 'checkbox', checked: !!p.favori });
+    const err = h('div', { class: 'help', style: { color: 'var(--danger)', minHeight: '18px' } });
+    const save = async () => {
+        let u = url.value.trim();
+        if (!u) { err.textContent = 'L’adresse est obligatoire.'; url.focus(); return; }
+        if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
+        try { new URL(u); } catch (e) { err.textContent = 'Adresse invalide.'; url.focus(); return; }
+        const name = title.value.trim() || hostOf(u);
+        const props = {
+            url: u, dossier: dossier.value.trim() || null, favori: pin.checked,
+            tags: tags.value.split(',').map(s => s.trim()).filter(Boolean)
+        };
+        const body = `# ${name}\n\n${desc.value.trim()}\n`;
+        if (isNew) {
+            const n = await post(`/api/dbs/${V.db.id}/rows`, { title: name, props: {}, body });
+            await put(`/api/rows/${n.id}/props`, props);
+        } else {
+            await put(`/api/notes/${r.id}`, { body, force: true });
+            await put(`/api/rows/${r.id}/props`, props);
+        }
+        m.close();
+        V.db = await get(`/api/dbs/${V.db.id}`);
+        V.rows = await get(`/api/dbs/${V.db.id}/rows`);
+        drawList();
+        toast(isNew ? 'Favori ajouté 🔖' : 'Favori modifié', 'ok');
+    };
+    [url, title, dossier, tags].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') save(); }));
+    const m = modal({
+        title: isNew ? '🔖 Ajouter un favori' : '🔖 Modifier le favori',
+        body: [
+            h('label', { class: 'field' }, h('span', {}, 'Adresse'), url),
+            h('label', { class: 'field' }, h('span', {}, 'Nom'), title),
+            h('div', { class: 'row' }, h('label', { class: 'field' }, h('span', {}, 'Dossier'), dossier, dlist), h('label', { class: 'field' }, h('span', {}, 'Tags'), tags)),
+            h('label', { class: 'field' }, h('span', {}, 'Note'), desc),
+            h('label', { class: 'switch' }, h('span', { class: 'switch-text' }, h('b', {}, '★ Épingler en haut'), h('small', {}, 'Les liens épinglés apparaissent en premier.')), pin),
+            err
+        ],
+        foot: [h('button', { class: 'btn primary', onclick: save }, isNew ? 'Ajouter' : 'Enregistrer')]
+    });
+}
 
 // ── Galerie ──
 function galleryView(rows) {

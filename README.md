@@ -244,6 +244,14 @@ Après une mise à jour du code : `powershell -File scripts\windows\installer-ap
 
 Sur l'iPhone, elle apparaît dans *Tâches → Notes* : pratique au magasin.
 
+## 10. Favoris
+
+Barre latérale → **🔖 Favoris** : tes liens préférés, saisis à la main (aucune importation depuis un navigateur).
+- **Ajouter un favori** : adresse (le `https://` est ajouté tout seul), nom (sinon le domaine), dossier, tags, une note, et l'option « épingler en haut ».
+- Les liens sont rangés **par dossier**, avec les épinglés en tête et l'icône du site. Un clic ouvre le site ; au survol : ★ épingler, ⧉ copier l'adresse, ✎ modifier, 🗑 supprimer.
+- La recherche porte sur les noms, adresses, notes et tags. Les filtres Dossier, Tags et Épinglés sont dans la barre du haut, et un onglet Tableau donne une vue d'ensemble.
+- Sur l'iPhone : *Accueil → 🔖 Favoris*, avec ajout par le bouton +.
+
 ## Sur le PC Windows (déjà fait)
 
 - Installé dans `C:\Users\yohan\Documents\Pomodoro`, `config.json` rempli (chaîne `emilae_tv`, bot `emilaebot`, mode auto).
