@@ -5,6 +5,16 @@ Règles générales : voir `CLAUDE.md`.
 
 ---
 
+## 2026-10-28 · MacBook — synchro du Mac réparée
+**Cause réelle côté Mac :** ce n'était pas le jeton. Le `config.json` du Mac n'avait **aucun bloc `sync`** (ni `remote`, ni `enabled`) : serveur en mode « local », dossier `data` sans remote, donc jamais rien envoyé (commits locaux « Mac.lan » depuis le 26/10). Le trousseau macOS donne bien accès à `pomodoro-data` : aucun jeton dans `config.json`.
+**Ce qui a changé** (Mac uniquement, `config.json` n'est pas versionné)
+- `git pull` (f946244), ajout de `"machineName": "MacBook"` et du bloc `sync` (`https://github.com/yohgaz/pomodoro-data.git`, 30 s), redémarrage par `./scripts/mac/redemarrer.sh`.
+- Première synchro : fusion `MacBook · fusion avec l'autre machine` (3bb3d17), envoyée ; notes du Mac intactes, aucun conflit. Sauvegarde avant fusion : `~/Documents/Pomodoro-data-sauvegarde-2026-10-28`.
+- `/api/sync/devices` montre maintenant « MacBook ». « Mac.lan » y reste (ancien nom, mêmes commits).
+**Reste à faire :** iPhone (dernier envoi le 28/09, jeton probablement expiré) → nouveau jeton « No expiration » via ⚙️ → 🔑 dans l'app mobile. Point 4 (bot en mode « auto » sous Émilae Studio) non vérifié.
+
+---
+
 ## 2026-10-28 · PC Windows — synchro : diagnostic des appareils, jetons GitHub, règles de coordination
 **Demande de Yohann.** « Pomodoro ne se synchronise plus entre mes appareils. » Le PC synchronise normalement (gestionnaire d'identifiants Windows). D'après l'historique de `pomodoro-data` : **le Mac n'a jamais rien envoyé**, l'iPhone plus rien depuis le 28/09. Cause probable : jetons GitHub « fine-grained » créés le 28/09, avec 30 jours d'expiration par défaut, donc expirés aujourd'hui. Non vérifié côté Mac.
 **Ce qui a changé** (commit `be50fcc` + ce commit)
