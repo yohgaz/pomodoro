@@ -338,7 +338,9 @@ route('PUT', '/api/config', async ({ req }) => {
     if (b.machineName) patch.machineName = String(b.machineName).slice(0, 40);
     if (b.sync) patch.sync = {
         ...(b.sync.remote !== undefined ? { remote: String(b.sync.remote).trim() } : {}),
-        ...(b.sync.enabled !== undefined ? { enabled: !!b.sync.enabled } : {})
+        ...(b.sync.enabled !== undefined ? { enabled: !!b.sync.enabled } : {}),
+        ...(b.sync.token ? { token: String(b.sync.token).trim() } : {}),
+        ...(b.sync.clearToken ? { token: '' } : {})
     };
     if (b.twitch) {
         patch.twitch = {};
@@ -359,6 +361,7 @@ route('PUT', '/api/config', async ({ req }) => {
 // Synchro
 route('GET', '/api/sync', () => sync.status);
 route('POST', '/api/sync/now', async () => sync.run('manuel'));
+route('GET', '/api/sync/devices', async () => sync.devices());
 
 // Connexion depuis le téléphone
 route('POST', '/api/login', async ({ req, res }) => {

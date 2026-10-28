@@ -150,6 +150,7 @@ function renderHome() {
             <button class="tb-btn" id="syncBtn" title="Synchroniser">${syncDot()}</button>
             <button class="tb-btn" id="settingsBtn" title="Réglages">${I.gear}</button></div>
         <div class="scroll">
+            ${store.status.state === 'error' ? `<div class="banner sync-banner" id="syncBanner">⚠️ ${esc(store.status.error || 'La synchronisation a échoué')}<br><b>Toucher ici pour changer le jeton GitHub</b></div>` : ''}
             <label class="search">${I.search}<input id="q" type="search" placeholder="Rechercher partout" enterkeyhint="search"></label>
             <div id="results"></div>
             <div id="homeGroups">
@@ -167,6 +168,8 @@ function renderHome() {
     app.querySelector('#tplBtn').onclick = () => templateSheet();
     app.querySelector('#syncBtn').onclick = () => { toast('Synchronisation…'); store.sync(); };
     app.querySelector('#settingsBtn').onclick = settingsSheet;
+    const sb = app.querySelector('#syncBanner');
+    if (sb) sb.onclick = changeToken;
     const q = app.querySelector('#q');
     q.oninput = () => {
         const v = q.value.trim();
@@ -668,18 +671,53 @@ function noteSheet(n) {
     });
 }
 
+// Nouveau jeton GitHub (l'ancien a expiré) : les notes du téléphone sont conservées,
+// y compris les modifications pas encore envoyées.
+function changeToken() {
+    sheet(`<h3>🔑 Nouveau jeton GitHub</h3>
+        <div style="padding:0 20px">
+            <p class="list-head" style="padding:0 0 10px">github.com → Settings → Developer settings → Fine-grained tokens → Generate new token. Expiration longue (1 an ou « No expiration »), dépôt <b>${esc(store.cfg.repo)}</b> uniquement, <b>Contents : Read and write</b>.</p>
+            <label class="field"><span>Jeton</span><input id="nt" type="password" placeholder="github_pat_…" autocapitalize="off" autocorrect="off" autocomplete="off"></label>
+            <div class="err" id="ne"></div>
+            <button class="btn primary" id="ns">Enregistrer et synchroniser</button>
+        </div>`, (bg, close) => {
+        const $ = id => bg.querySelector('#' + id);
+        $('ns').onclick = async () => {
+            const token = $('nt').value.trim();
+            if (!token) { $('ne').textContent = 'Colle le nouveau jeton.'; return; }
+            $('ns').disabled = true; $('ns').textContent = 'Vérification…';
+            try {
+                const cfg = { ...store.cfg, token };
+                await store.testConnection(cfg);
+                await store.configure(cfg); // même dépôt : rien n'est effacé
+                close();
+                toast('Jeton enregistré ✓ — synchronisation…');
+                await store.sync();
+                toast(syncLabel());
+                route();
+            } catch (e) {
+                $('ne').textContent = e.message;
+                $('ns').disabled = false; $('ns').textContent = 'Enregistrer et synchroniser';
+            }
+        };
+        setTimeout(() => $('nt').focus(), 150);
+    });
+}
+
 function settingsSheet() {
     const c = store.cfg;
     sheet(`<h3>Réglages</h3>
         <div class="list-head">${syncDot()} ${esc(syncLabel())}</div>
         ${c.demo ? '<div class="list-head">Mode démo : les notes restent sur ce téléphone.</div>' : `<div class="list-head">Dépôt : <b>${esc(c.owner)}/${esc(c.repo)}</b> · appareil « ${esc(c.device || 'Téléphone')} »</div>`}
         <button class="row" data-a="sync"><span class="lbl">🔄 Synchroniser maintenant</span></button>
+        ${c.demo ? '' : '<button class="row" data-a="token"><span class="lbl">🔑 Changer le jeton GitHub</span></button>'}
         <button class="row" data-a="theme"><span class="lbl">🌓 Thème ${document.documentElement.dataset.theme === 'light' ? 'sombre' : 'clair'}</span></button>
         <button class="row danger" data-a="logout"><span class="lbl">🚪 Se déconnecter de ce téléphone</span></button>`, (bg, close) => {
         bg.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => {
             const a = b.dataset.a;
             close();
             if (a === 'sync') { toast('Synchronisation…'); await store.sync(); toast(syncLabel()); }
+            if (a === 'token') changeToken();
             if (a === 'theme') { const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try { localStorage.setItem('pomodoro.theme', t); } catch (e) { /* rien */ } }
             if (a === 'logout') {
                 if (store.status.pending && !confirm(`${store.status.pending} modification(s) pas encore envoyée(s) seront perdues. Continuer ?`)) return;

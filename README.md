@@ -252,6 +252,19 @@ Barre latérale → **🔖 Favoris** : tes liens préférés, saisis à la main 
 - La recherche porte sur les noms, adresses, notes et tags. Les filtres Dossier, Tags et Épinglés sont dans la barre du haut, et un onglet Tableau donne une vue d'ensemble.
 - Sur l'iPhone : *Accueil → 🔖 Favoris*, avec ajout par le bouton +.
 
+## Dépannage : un appareil ne se synchronise plus
+
+Réglages → **Synchronisation** affiche le **dernier envoi de chaque appareil** sur GitHub. Un appareil muet depuis plusieurs jours a un problème de son côté. La cause la plus fréquente est un **jeton GitHub expiré** : GitHub propose 30 jours par défaut pour les jetons « fine-grained ». L'appli affiche alors « 🔑 Accès refusé par GitHub ».
+
+**Nouveau jeton :** github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens → *Generate new token* :
+- Expiration : **No expiration**, ou 1 an ;
+- Repository access : *Only select repositories* → `pomodoro-data` ;
+- Permissions → **Contents : Read and write**.
+
+Ensuite, selon l'appareil :
+- **iPhone** : touche le bandeau rouge de l'accueil (ou ⚙️ → *🔑 Changer le jeton GitHub*) et colle le jeton. Les notes du téléphone sont conservées, y compris celles pas encore envoyées.
+- **Mac ou PC** : Réglages → Synchronisation → *Jeton GitHub de cette machine*, colle le jeton, puis *Enregistrer*. Il sert uniquement à Pomodoro, reste dans `config.json` et ne touche pas au trousseau, donc le dépôt du stream n'est pas affecté.
+
 ## Sur le PC Windows (déjà fait)
 
 - Installé dans `C:\Users\yohan\Documents\Pomodoro`, `config.json` rempli (chaîne `emilae_tv`, bot `emilaebot`, mode auto).

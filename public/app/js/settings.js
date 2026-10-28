@@ -13,11 +13,20 @@ export async function render(container, ctx) {
         const machine = h('input', { value: cfg.machineName });
         const remote = h('input', { value: cfg.sync.remote || '', placeholder: 'https://github.com/yohgaz/pomodoro-data.git' });
         const syncOn = h('input', { type: 'checkbox', checked: cfg.sync.enabled });
+        const ghToken = h('input', { type: 'password', autocomplete: 'off', placeholder: cfg.sync.hasToken ? '•••••••• (enregistré — laisser vide pour le garder)' : 'Facultatif : github_pat_…' });
         const wsName = h('input', { value: st.settings.workspaceName || 'Pomodoro' });
         const lan = h('input', { type: 'checkbox', checked: cfg.host === '0.0.0.0' });
         const code = h('input', { type: 'password', placeholder: st.hasAccessCode ? '•••• (déjà défini)' : 'ex. 4 à 8 chiffres', autocomplete: 'new-password' });
 
-        const stateLabel = { idle: '✅ Synchronisé', syncing: '🔄 En cours…', local: '💾 Local uniquement', offline: '📴 Hors ligne', error: '⚠️ Erreur', disabled: '⛔ Désactivée', init: '…' }[sync.state] || sync.state;
+        // Un appareil qui n'envoie plus rien depuis longtemps = synchro cassée de son côté.
+        const devicesBox = h('div', { class: 'help' }, 'Chargement…');
+        get('/api/sync/devices').then(list => {
+            devicesBox.replaceChildren(list.length ? h('table', { class: 'cmd-table', style: { margin: '0 0 10px' } }, h('tbody', {}, ...list.map(d => {
+                const old = Date.now() - d.at > 3 * 86400000;
+                return h('tr', {}, h('td', {}, d.device), h('td', { style: old ? { color: 'var(--gold)' } : {} }, `${ago(d.at)}${old ? ' — rien depuis plusieurs jours' : ''}`));
+            }))) : 'Aucun envoi enregistré.');
+        }).catch(() => { devicesBox.textContent = ''; });
+        const stateLabel = { idle: '✅ Synchronisé', syncing: '🔄 En cours…', local: '💾 Local uniquement', offline: '📴 Hors ligne', error: '⚠️ Erreur', auth: '🔑 Accès refusé par GitHub', disabled: '⛔ Désactivée', init: '…' }[sync.state] || sync.state;
         const mobileUrl = 'https://yohgaz.github.io/pomodoro/';
         const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 
@@ -28,13 +37,19 @@ export async function render(container, ctx) {
                     h('div', { class: 'card' }, h('h3', {}, '🔄 Synchronisation', h('small', {}, stateLabel)),
                         h('p', { class: 'help', style: { marginTop: 0 } }, 'Chaque machine garde une copie complète de tes notes et fonctionne seule. Un dépôt GitHub privé sert de point de rendez-vous : le PC, le Mac et le téléphone s’y retrouvent, même si les autres sont éteints.'),
                         h('label', { class: 'field' }, h('span', {}, 'Dépôt git des données'), remote, h('small', {}, 'Dépôt PRIVÉ, vide au départ (ex. pomodoro-data). Laisse vide pour rester en local.')),
+                        h('label', { class: 'field' }, h('span', {}, 'Jeton GitHub de cette machine'), ghToken,
+                            h('small', {}, 'Facultatif. Sans jeton, git utilise les identifiants du système (gestionnaire Windows, trousseau macOS). Utile quand ils ont expiré : jeton « fine-grained » limité au dépôt de données, Contents : Read and write, expiration longue. Reste sur cette machine.'),
+                            cfg.sync.hasToken ? h('button', { class: 'btn small ghost danger', style: { alignSelf: 'flex-start' }, onclick: async () => { st = await put('/api/config', { sync: { clearToken: true } }); toast('Jeton oublié'); draw(); } }, 'Oublier le jeton') : null),
                         h('label', { class: 'switch' }, h('span', { class: 'switch-text' }, h('b', {}, 'Synchro automatique'), h('small', {}, 'Toutes les 30 s et quelques secondes après chaque modification')), syncOn),
                         h('table', { class: 'cmd-table', style: { margin: '10px 0' } }, h('tbody', {},
                             h('tr', {}, h('td', {}, 'Dernière synchro'), h('td', {}, sync.lastSync ? `${ago(sync.lastSync)} (${fullDate(sync.lastSync)})` : 'jamais')),
                             h('tr', {}, h('td', {}, 'Dossier local'), h('td', {}, h('code', {}, cfg.dataDir))),
                             sync.lastError ? h('tr', {}, h('td', {}, 'Erreur'), h('td', { style: { color: 'var(--danger)' } }, sync.lastError)) : null)),
+                        sync.state === 'auth' ? h('p', { class: 'help', style: { color: 'var(--danger)' } }, 'Recrée un jeton sur github.com (Settings → Developer settings → Fine-grained tokens), avec une expiration longue, limité au dépôt pomodoro-data, Contents : Read and write — puis enregistre-le sur cette machine (voir le README, section « Jeton expiré »).') : null,
+                        h('div', { class: 'help', style: { margin: '4px 0 6px' } }, h('b', {}, 'Derniers envois sur GitHub, par appareil')),
+                        devicesBox,
                         h('div', { class: 'row' },
-                            h('button', { class: 'btn primary', onclick: async () => { st = await put('/api/config', { sync: { remote: remote.value, enabled: syncOn.checked } }); toast('Enregistré — synchro lancée', 'ok'); setTimeout(async () => { st = await get('/api/state'); draw(); }, 2500); draw(); } }, 'Enregistrer'),
+                            h('button', { class: 'btn primary', onclick: async () => { st = await put('/api/config', { sync: { remote: remote.value, enabled: syncOn.checked, ...(ghToken.value.trim() ? { token: ghToken.value.trim() } : {}) } }); toast('Enregistré — synchro lancée', 'ok'); setTimeout(async () => { st = await get('/api/state'); draw(); }, 2500); draw(); } }, 'Enregistrer'),
                             h('button', { class: 'btn', onclick: async () => { toast('Synchronisation…'); await post('/api/sync/now'); st = await get('/api/state'); draw(); } }, icon('sync'), 'Synchroniser maintenant'))
                     ),
                     h('div', { class: 'card' }, h('h3', {}, '📱 App mobile (partout, même en 4G)'),

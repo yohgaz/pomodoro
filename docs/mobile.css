@@ -124,3 +124,4 @@ details.help code { background: var(--c3); padding: 1px 5px; border-radius: 5px;
 .add-inline button { width: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-size: 22px; font-weight: 900; }
 .bm-ico { background: var(--c3); color: var(--accent); font-weight: 900; overflow: hidden; }
 .bm-ico img { width: 18px; height: 18px; object-fit: contain; }
+.sync-banner { margin: 12px 14px 0; border-radius: 12px; color: var(--danger); background: rgba(255, 107, 107, .12); line-height: 1.45; cursor: pointer; }

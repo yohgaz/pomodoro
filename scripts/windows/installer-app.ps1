@@ -27,4 +27,9 @@ foreach ($dir in @([Environment]::GetFolderPath('Programs'), [Environment]::GetF
 }
 Write-Host "App installée : $exe"
 Write-Host 'Raccourcis créés dans le Menu Démarrer et sur le Bureau.'
-Start-Process $exe
+# Lancement détaché de ce terminal (tâche temporaire du Planificateur)
+$action = New-ScheduledTaskAction -Execute $exe -WorkingDirectory $out
+Register-ScheduledTask -TaskName 'LancePomodoroAppTemp' -Action $action -Force | Out-Null
+Start-ScheduledTask -TaskName 'LancePomodoroAppTemp'
+Start-Sleep 2
+Unregister-ScheduledTask -TaskName 'LancePomodoroAppTemp' -Confirm:$false -ErrorAction SilentlyContinue

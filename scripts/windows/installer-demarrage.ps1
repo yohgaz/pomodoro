@@ -14,9 +14,8 @@ $s.Description = 'Serveur Pomodoro (notes + liste de tâches du stream)'
 $s.Save()
 Write-Host "Raccourci de démarrage créé : $lnk"
 
-& (Join-Path $PSScriptRoot 'arreter.ps1') | Out-Null
-Start-Process wscript.exe -ArgumentList ('"' + $vbs + '"')
-Start-Sleep 3
+# Lancement détaché de ce terminal (tâche temporaire du Planificateur)
+& (Join-Path $PSScriptRoot 'redemarrer.ps1')
 try {
     $r = Invoke-RestMethod http://localhost:3210/api/state -TimeoutSec 5
     Write-Host "Pomodoro tourne : http://localhost:3210/ (machine « $($r.config.machineName) »)"

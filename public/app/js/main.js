@@ -253,6 +253,7 @@ function syncChip() {
         else if (st.state === 'local') { cls = 'local'; txt = 'Local uniquement (pas de dépôt)'; }
         else if (st.state === 'offline') { cls = 'err'; txt = 'Hors ligne — en attente'; }
         else if (st.state === 'error') { cls = 'err'; txt = 'Erreur de synchro'; }
+        else if (st.state === 'auth') { cls = 'err'; txt = 'GitHub refuse l’accès (jeton ?)'; }
         else if (st.state === 'disabled') { cls = 'err'; txt = 'Synchro désactivée'; }
     }
     return h('div', { class: 'sync-chip', title: st && st.lastError ? st.lastError : 'Synchroniser maintenant', onclick: async () => { toast('Synchronisation…'); await post('/api/sync/now'); } },
